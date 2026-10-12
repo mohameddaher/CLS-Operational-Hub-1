@@ -120,10 +120,17 @@
   function addSignOut() {
     var lbl = document.getElementById("syncLbl");
     if (!lbl || !lbl.parentNode || document.getElementById("signOutBtn")) return;
-    var b = mk("button", "margin-left:auto;border:1px solid rgba(255,255,255,.2);background:transparent;color:inherit;border-radius:8px;padding:3px 9px;font:inherit;font-size:12px;cursor:pointer", "Sign out");
+    var foot = lbl.parentNode;
+    foot.style.flexWrap = "wrap";
+    lbl.style.minWidth = "0";
+    var base = "rgba(255,255,255,.06)", hover = "rgba(255,255,255,.14)";
+    var b = mk("button", "flex:0 0 100%;display:flex;align-items:center;justify-content:center;gap:7px;margin-top:6px;white-space:nowrap;border:1px solid rgba(255,255,255,.18);background:" + base + ";color:inherit;border-radius:9px;padding:7px 10px;font:inherit;font-size:13px;font-weight:600;cursor:pointer");
+    b.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg><span>Sign out</span>';
     b.id = "signOutBtn"; b.type = "button";
+    b.addEventListener("mouseenter", function () { b.style.background = hover; });
+    b.addEventListener("mouseleave", function () { b.style.background = base; });
     b.addEventListener("click", async function () { await sb.auth.signOut(); location.reload(); });
-    lbl.parentNode.appendChild(b);
+    foot.appendChild(b);
   }
 
   var dbPromise = null;
