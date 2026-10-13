@@ -55,8 +55,20 @@ button{cursor:pointer}
 .sidenav::-webkit-scrollbar-thumb:hover{background:rgba(190,208,240,.65);background-clip:content-box}
 .sidenav::-webkit-scrollbar-thumb:active{background:#7FB0FF;background-clip:content-box}
 @supports not selector(::-webkit-scrollbar){.sidenav{scrollbar-width:thin;scrollbar-color:rgba(150,172,212,.4) transparent}}
-.grp{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--side-muted);padding:14px 10px 6px;font-weight:600;display:flex;align-items:center;gap:7px}
-.grp i{width:8px;height:8px;border-radius:3px;background:var(--gc)}
+/* Collapsible sidebar groups: each header is a button that opens and closes its items */
+.grp{--gc:#94A3B8;display:flex;align-items:center;gap:8px;width:100%;margin-top:6px;border:0;background:none;border-radius:9px;padding:9px 10px;text-align:left;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--side-muted);font-weight:700;transition:background .15s,color .15s}
+.grp:hover{background:rgba(255,255,255,.06);color:#fff}
+.grp[aria-expanded="true"]{color:var(--side-ink)}
+.grp i{width:8px;height:8px;border-radius:3px;background:var(--gc);flex:none}
+.grp .gt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grp .gn{flex:none;background:#E11D48;color:#fff;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0;padding:0 7px;line-height:18px}
+.grp[aria-expanded="true"] .gn{display:none}
+.grp .chev{flex:none;display:grid;place-items:center;transition:transform .25s ease}
+.grp[aria-expanded="false"] .chev{transform:rotate(-90deg)}
+.gbody{display:grid;grid-template-rows:1fr;margin:-3px;transition:grid-template-rows .26s ease,visibility 0s}
+.gbody.shut{grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows .26s ease,visibility 0s .26s}
+.gin{min-height:0;overflow:hidden;padding:3px}
+@media (prefers-reduced-motion:reduce){.gbody,.gbody.shut,.grp .chev{transition:none}}
 .nv{--c:#60A5FA;display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;color:var(--side-ink);padding:7px 10px;border-radius:9px;text-align:left;font-size:13.5px;font-weight:500;transition:background .15s,transform .15s}
 .nv .ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--c) 26%,transparent);color:color-mix(in srgb,var(--c) 55%,#fff)}
 .nv:hover{background:rgba(255,255,255,.06);color:#fff;transform:translateX(2px)}
@@ -1065,8 +1077,23 @@ let envSel="PR:temp",taskDept="All";
 
 /* ---------- render ---------- */
 let active="overview",lastActive=null;
-function renderNav(){let g="",h="";SECTIONS.forEach(s=>{if(s.group!==g){g=s.group;h+=`<div class="grp" style="--gc:${GROUPS[g]}"><i></i>${g==="Shared"?"Shared by all teams":g}</div>`}const n=badge(s.id);
-  h+=`<button class="nv" style="--c:${s.color}" data-goto="${s.id}" ${s.id===active?'aria-current="page"':""}><span class="ic">${ic(s.icon)}</span><span class="t">${esc(s.label)}</span>${n?`<span class="n">${n}</span>`:""}</button>`});$("sidenav").innerHTML=h}
+/* sidebar dropdown groups: open/closed state is remembered on this device; the group of the current page always opens */
+const GK="cls-hub-groups";let openGroups=null,navSeen=null;
+function loadGroups(){if(openGroups)return;openGroups=new Set();try{const a=JSON.parse(localStorage.getItem(GK)||"null");if(Array.isArray(a))a.forEach(x=>{if(GROUPS[x])openGroups.add(x)})}catch(e){}}
+function saveGroups(){try{localStorage.setItem(GK,JSON.stringify([...openGroups]))}catch(e){}}
+function toggleGroup(g){loadGroups();const open=!openGroups.has(g);if(open)openGroups.add(g);else openGroups.delete(g);saveGroups();
+  const b=document.querySelector('.grp[data-grp="'+g+'"]'),body=$("grp-"+g);if(b)b.setAttribute("aria-expanded",String(open));if(body)body.classList.toggle("shut",!open)}
+const CHEV='<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+function renderNav(){loadGroups();
+  if(navSeen!==active){navSeen=active;const ag=SEC[active].group;if(!openGroups.has(ag)){openGroups.add(ag);saveGroups()}}
+  const by={};SECTIONS.forEach(s=>{(by[s.group]=by[s.group]||[]).push(s)});let h="";
+  Object.keys(by).forEach(g=>{const open=openGroups.has(g),label=g==="Shared"?"Shared by all teams":g,total=by[g].reduce((a,s)=>a+(Number(badge(s.id))||0),0);
+    h+=`<button type="button" class="grp" style="--gc:${GROUPS[g]}" data-grp="${g}" aria-expanded="${open}" aria-controls="grp-${g}"><i></i><span class="gt">${label}</span>${total?`<span class="gn" title="${total} need attention">${total}</span>`:""}${CHEV}</button>`;
+    h+=`<div class="gbody${open?"":" shut"}" id="grp-${g}" role="group" aria-label="${label}"><div class="gin">`;
+    by[g].forEach(s=>{const n=badge(s.id);
+      h+=`<button class="nv" style="--c:${s.color}" data-goto="${s.id}" ${s.id===active?'aria-current="page"':""}><span class="ic">${ic(s.icon)}</span><span class="t">${esc(s.label)}</span>${n?`<span class="n">${n}</span>`:""}</button>`});
+    h+=`</div></div>`});
+  $("sidenav").innerHTML=h}
 function countUp(){if(reduced())return;document.querySelectorAll("#view .stat .v, #view .hs b").forEach(el=>{if(el.children.length)return;const t=el.textContent.trim();if(!/^\d{1,4}$/.test(t))return;const end=+t;if(end<2)return;const t0=performance.now();
   const step=now=>{const k=Math.min(1,(now-t0)/700);el.textContent=Math.round(end*(1-Math.pow(1-k,3)));if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)})}
 function render(quiet){dirty=false;const s=SEC[active];document.documentElement.style.setProperty("--accent",s.color);
@@ -1122,9 +1149,10 @@ document.querySelector(".theme").addEventListener("click",e=>{const b=e.target.c
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{
   const chip=e.target.closest("#modal .chip[data-chip]");if(chip){chip.classList.toggle("on");chip.setAttribute("aria-pressed",String(chip.classList.contains("on")));return}
-  const t=e.target.closest("[data-goto],[data-add],[data-addc],[data-addp],[data-edit],[data-del],[data-csv],[data-close],[data-car],[data-cdot],[data-env],[data-tdept],[data-qty],[data-area],[data-quick],[data-gs],#burger,#scrim,#doDel");
+  const t=e.target.closest("[data-grp],[data-goto],[data-add],[data-addc],[data-addp],[data-edit],[data-del],[data-csv],[data-close],[data-car],[data-cdot],[data-env],[data-tdept],[data-qty],[data-area],[data-quick],[data-gs],#burger,#scrim,#doDel");
   if(!t){if(e.target===$("backdrop"))closeModal();return}
   if(t.id==="burger"){$("side").classList.add("open");$("scrim").hidden=false}
+  else if(t.dataset.grp){toggleGroup(t.dataset.grp)}
   else if(t.id==="scrim")closeSide();
   else if(t.id==="doDel"){const d=formCtx.del;closeModal();delRec(d.col,d.id).then(()=>toast("Deleted"))}
   else if(t.dataset.close!==undefined)closeModal();
