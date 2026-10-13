@@ -41,3 +41,5 @@ Every later `git push` (or file upload on GitHub) redeploys automatically.
 - The anon key in `config.js` is meant to be public. Security comes from Row Level Security in the SQL file: only signed-in users can read or write.
 - All signed-in users can edit all records. If you need view-only users, ask for role-based policies.
 - If `config.js` is left unfilled, the app still opens and saves on that device only.
+
+- Generator load: to load the recorded week (2 to 8 Oct 2026), run `supabase-import-gen-load.sql` in the Supabase SQL Editor. Running it twice does not create duplicates.
