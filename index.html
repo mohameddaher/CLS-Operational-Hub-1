@@ -56,10 +56,11 @@ button{cursor:pointer}
 .sidenav::-webkit-scrollbar-thumb:active{background:#7FB0FF;background-clip:content-box}
 @supports not selector(::-webkit-scrollbar){.sidenav{scrollbar-width:thin;scrollbar-color:rgba(150,172,212,.4) transparent}}
 /* Collapsible sidebar groups: each header is a button that opens and closes its items */
-.grp{--gc:#94A3B8;display:flex;align-items:center;gap:8px;width:100%;margin-top:6px;border:0;background:none;border-radius:9px;padding:9px 10px;text-align:left;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--side-muted);font-weight:700;transition:background .15s,color .15s}
+.grp{--gc:#94A3B8;display:flex;align-items:center;gap:10px;width:100%;margin-top:6px;border:0;background:none;border-radius:9px;padding:7px 10px;text-align:left;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--side-muted);font-weight:700;transition:background .15s,color .15s}
 .grp:hover{background:rgba(255,255,255,.06);color:#fff}
 .grp[aria-expanded="true"]{color:var(--side-ink)}
-.grp i{width:8px;height:8px;border-radius:3px;background:var(--gc);flex:none}
+.grp .gi{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--gc) 26%,transparent);color:color-mix(in srgb,var(--gc) 55%,#fff);transition:background .15s,color .15s}
+.grp:hover .gi,.grp[aria-expanded="true"] .gi{background:color-mix(in srgb,var(--gc) 38%,transparent);color:#fff}
 .grp .gt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .grp .gn{flex:none;background:#E11D48;color:#fff;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0;padding:0 7px;line-height:18px}
 .grp[aria-expanded="true"] .gn{display:none}
@@ -1079,6 +1080,7 @@ let envSel="PR:temp",taskDept="All";
 let active="overview",lastActive=null;
 /* sidebar dropdown groups: open/closed state is remembered on this device; the group of the current page always opens */
 const GK="cls-hub-groups";let openGroups=null,navSeen=null;
+const GICON={Dashboard:"grid",NOC:"router",Generator:"bolt",Security:"shield",Shared:"people"};
 function loadGroups(){if(openGroups)return;openGroups=new Set();try{const a=JSON.parse(localStorage.getItem(GK)||"null");if(Array.isArray(a))a.forEach(x=>{if(GROUPS[x])openGroups.add(x)})}catch(e){}}
 function saveGroups(){try{localStorage.setItem(GK,JSON.stringify([...openGroups]))}catch(e){}}
 function toggleGroup(g){loadGroups();const open=!openGroups.has(g);if(open)openGroups.add(g);else openGroups.delete(g);saveGroups();
@@ -1088,7 +1090,7 @@ function renderNav(){loadGroups();
   if(navSeen!==active){navSeen=active;const ag=SEC[active].group;if(!openGroups.has(ag)){openGroups.add(ag);saveGroups()}}
   const by={};SECTIONS.forEach(s=>{(by[s.group]=by[s.group]||[]).push(s)});let h="";
   Object.keys(by).forEach(g=>{const open=openGroups.has(g),label=g==="Shared"?"Shared by all teams":g,total=by[g].reduce((a,s)=>a+(Number(badge(s.id))||0),0);
-    h+=`<button type="button" class="grp" style="--gc:${GROUPS[g]}" data-grp="${g}" aria-expanded="${open}" aria-controls="grp-${g}"><i></i><span class="gt">${label}</span>${total?`<span class="gn" title="${total} need attention">${total}</span>`:""}${CHEV}</button>`;
+    h+=`<button type="button" class="grp" style="--gc:${GROUPS[g]}" data-grp="${g}" aria-expanded="${open}" aria-controls="grp-${g}"><span class="gi">${ic(GICON[g],15)}</span><span class="gt">${label}</span>${total?`<span class="gn" title="${total} need attention">${total}</span>`:""}${CHEV}</button>`;
     h+=`<div class="gbody${open?"":" shut"}" id="grp-${g}" role="group" aria-label="${label}"><div class="gin">`;
     by[g].forEach(s=>{const n=badge(s.id);
       h+=`<button class="nv" style="--c:${s.color}" data-goto="${s.id}" ${s.id===active?'aria-current="page"':""}><span class="ic">${ic(s.icon)}</span><span class="t">${esc(s.label)}</span>${n?`<span class="n">${n}</span>`:""}</button>`});
