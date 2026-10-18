@@ -546,8 +546,9 @@ const dcol={k:"date",label:"Date",f:r=>`<b>${fd(r.date)}</b>`},scol={k:"shift",l
 function tstat(p){return p==null?"":p===0?"No traffic":p<=50?"Low":p<=89?"Mid":"High"}
 function ttone(p){return p==null?"neutral":p===0?"neutral":p<=50?"info":p<=89?"ok":"bad"}
 function tcolor(p){return p==null||p===0?"var(--muted)":p<=50?"#0EA5E9":p<=89?"#16A34A":"#DC2626"}
+const CLR_WARN=7;
 function clr(r){const e=r.expires?parseD(r.expires):r.issued?addMonths(parseD(r.issued),3):null;return {exp:e,days:e?diff(today(),e):null}}
-function clrPill(r){const c=clr(r);if(c.days==null)return pill("No date recorded","neutral");if(c.days<0)return pill("Expired "+Math.abs(c.days)+" days ago","bad");if(c.days<=14)return pill("Renew now, "+c.days+" days left","warn");return pill("Valid, "+c.days+" days left","ok")}
+function clrPill(r){const c=clr(r);if(c.days==null)return pill("No date recorded","neutral");if(c.days<0)return pill("Expired "+Math.abs(c.days)+" days ago","bad");if(c.days<=CLR_WARN)return pill("Renew now, "+c.days+" days left","warn");return pill("Valid, "+c.days+" days left","ok")}
 function remain(r){return (num(r.stockIn)||0)-(num(r.stockOut)||0)}
 function bal(r){return (num(r.forward)||0)+(num(r.initial)||0)-(num(r.taken)||0)}
 function envPill(metric,v){if(v==null)return "—";if(metric==="temp")return v>27?pill("High","bad"):v<10?pill("Low","info"):pill("Normal","ok");return v>70?pill("High","warn"):v<30?pill("Low","info"):pill("Normal","ok")}
@@ -808,7 +809,7 @@ function dueTone(days){return days==null?"neutral":days<0?"bad":days<=7?"warn":"
 
 /* ---------- attention list across all teams ---------- */
 const gateInside=()=>data.gateLog.filter(g=>g.status==="Inside");
-const clrDue=()=>data.clearances.map(r=>({r,...clr(r)})).filter(x=>x.days!=null&&x.days<=14);
+const clrDue=()=>data.clearances.map(r=>({r,...clr(r)})).filter(x=>x.days!=null&&x.days<=CLR_WARN);
 function alerts(){const out=[],lt=latestTraffic(),A=(c,t,d,go,dept)=>out.push({c,t,d,go,dept});
   const hi=linkRows(lt).filter(x=>x.p>=90);if(hi.length)A(SEC.traffic.color,`${hi.length} link${hi.length>1?"s":""} at high throughput (90% or more)`,hi.map(x=>x.c.name+" "+x.p+"%").join("; ")+" on "+fd(lt.date),"traffic","NOC");
   const al=activeAlarms();if(al.length){const mj=al.filter(a=>a.severity==="Critical"||a.severity==="Major").length;A(SEC.alarms.color,`${al.length} active alarm${al.length>1?"s":""}`,mj+" critical or major","alarms","NOC")}
@@ -1112,9 +1113,9 @@ Object.assign(VIEWS,{
   return head("Visitor gate log","Every visitor, contractor and vehicle cleared through the airport gates and the DARE1 site gate. Approve, check in and check out from the Status column.")+
   `<div class="grid g4">${stat("Waiting for clearance",by("Requested"),"requested","var(--info)")}${stat("On site now",by("Inside"),"checked in, not out","var(--warn)")}${stat("Entries today",G.filter(g=>g.date===todayIso()).length,fd(today()),"var(--ok)")}${stat("Denied",by("Denied"),"all time","var(--bad)")}</div>
   <h3>Gate log</h3>${table("gateLog","gateLog")}`},
- clearance(){const C=data.clearances.map(r=>({r,...clr(r)})),v=C.filter(x=>x.days!=null&&x.days>14).length,soon=C.filter(x=>x.days!=null&&x.days>=0&&x.days<=14).length,ex=C.filter(x=>x.days!=null&&x.days<0).length,nd=C.filter(x=>x.days==null).length,dl=x=>x+(x===1?" day":" days"),nxt=(lo,hi)=>{const d=C.filter(x=>x.days!=null&&x.days>=lo&&x.days<=hi).map(x=>x.days);return d.length?Math.min(...d):null},nv=nxt(15,1e9),ns=nxt(0,14),exl=C.filter(x=>x.days!=null&&x.days<0).map(x=>-x.days);
+ clearance(){const C=data.clearances.map(r=>({r,...clr(r)})),v=C.filter(x=>x.days!=null&&x.days>CLR_WARN).length,soon=C.filter(x=>x.days!=null&&x.days>=0&&x.days<=CLR_WARN).length,ex=C.filter(x=>x.days!=null&&x.days<0).length,nd=C.filter(x=>x.days==null).length,dl=x=>x+(x===1?" day":" days"),nxt=(lo,hi)=>{const d=C.filter(x=>x.days!=null&&x.days>=lo&&x.days<=hi).map(x=>x.days);return d.length?Math.min(...d):null},nv=nxt(CLR_WARN+1,1e9),ns=nxt(0,CLR_WARN),exl=C.filter(x=>x.days!=null&&x.days<0).map(x=>-x.days);
   return head("Airport compound gate clearance","Access clearance for all CLS staff and the two vehicles at the Mogadishu Airport compound gate. Each clearance lasts three months and is renewed at the AMISOM office.")+
-  `<div class="grid g4">${stat("Valid",v,nv!=null?"Next to expire in "+dl(nv):"Nothing valid","var(--ok)")}${stat("Renew now",soon,ns!=null?"Soonest expires in "+dl(ns):"None due in the next 14 days","var(--warn)")}${stat("Expired",ex,exl.length?"Longest expired "+dl(Math.max(...exl))+" ago":"None expired","var(--bad)")}${stat("No date recorded",nd,"add the issue date","var(--muted)")}</div>
+  `<div class="grid g4">${stat("Valid",v,nv!=null?"Next to expire in "+dl(nv):"Nothing valid","var(--ok)")}${stat("Renew now",soon,ns!=null?"Soonest expires in "+dl(ns):"None due in the next "+CLR_WARN+" days","var(--warn)")}${stat("Expired",ex,exl.length?"Longest expired "+dl(Math.max(...exl))+" ago":"None expired","var(--bad)")}${stat("No date recorded",nd,"add the issue date","var(--muted)")}</div>
   <h3>Staff clearance</h3>${table("clr-staff","clearances",{preset:{type:"Staff"},filter:r=>r.type!=="Vehicle"})}<h3>Vehicles</h3>${table("clr-veh","clearances",{preset:{type:"Vehicle"},filter:r=>r.type==="Vehicle",title:"vehicle clearance"})}`},
  tasks(){const T=data.tasks,f=taskDept;const rows=f==="All"?null:r=>deptOf(r.assignee)===f;
   const perf=crew().filter(p=>f==="All"||p.dept===f).map(p=>{const mine=T.filter(t=>t.assignee===p.name),done=mine.filter(t=>t.status==="Done"),rated=done.filter(t=>t.rating);return {p,open:mine.length-done.length,done:done.length,od:mine.filter(t=>t.status!=="Done"&&t.due&&parseD(t.due)<today()).length,avg:rated.length?rated.reduce((a,t)=>a+ +t.rating,0)/rated.length:null}}).filter(x=>x.open+x.done>0||f!=="All");
