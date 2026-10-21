@@ -493,7 +493,7 @@ const SECTIONS=[
  {id:"store",label:"Office block store",group:"Shared",color:"#B45309",icon:"box"},
  {id:"leave",label:"Annual leave",group:"Shared",color:"#2563EB",icon:"cal"}
 ];
-const NOC_SUBS=["Power","Ethernet"],NOC_SUB_OF={pfe:"Power",ups:"Power",rectifier:"Power",traffic:"Ethernet",ciena:"Ethernet",routers:"Ethernet",firewall:"Ethernet",planet:"Ethernet",cswitch:"Ethernet"},SUB_ICON={Power:"bolt",Ethernet:"router"},SUB_COLOR={Power:"#F59E0B",Ethernet:"#3B82F6"};
+const PE="Power and Environment",NOC_SUBS=[PE,"Ethernet"],NOC_SUB_OF={climate:PE,pfe:PE,ups:PE,rectifier:PE,traffic:"Ethernet",ciena:"Ethernet",routers:"Ethernet",firewall:"Ethernet",planet:"Ethernet",cswitch:"Ethernet",devices:"Ethernet",ips:"Ethernet",asn:"Ethernet",prefixes:"Ethernet",routerips:"Ethernet",incidents:"Ethernet"},SUB_ICON={[PE]:"bolt",Ethernet:"router"},SUB_COLOR={[PE]:"#F59E0B",Ethernet:"#3B82F6"},subId=n=>"sub-"+n.replace(/\W+/g,"-");
 SECTIONS.forEach(s=>{if(s.group==="NOC"&&NOC_SUB_OF[s.id])s.sub=NOC_SUB_OF[s.id]});
 const SEC=Object.fromEntries(SECTIONS.map(s=>[s.id,s]));
 
@@ -1263,7 +1263,7 @@ let openSubs=null;const SK="cls-hub-subs";
 function loadSubs(){if(openSubs)return;openSubs=new Set();try{const a=JSON.parse(localStorage.getItem(SK)||"null");if(Array.isArray(a))a.forEach(x=>{if(NOC_SUBS.includes(x))openSubs.add(x)})}catch(e){}}
 function saveSubs(){try{localStorage.setItem(SK,JSON.stringify([...openSubs]))}catch(e){}}
 function toggleSub(n){loadSubs();const open=!openSubs.has(n);if(open)openSubs.add(n);else openSubs.delete(n);saveSubs();
-  const b=document.querySelector('.sgrp[data-sub="'+n+'"]'),body=$("sub-"+n);if(b)b.setAttribute("aria-expanded",String(open));if(body)body.classList.toggle("shut",!open)}
+  const b=document.querySelector('.sgrp[data-sub="'+n+'"]'),body=$(subId(n));if(b)b.setAttribute("aria-expanded",String(open));if(body)body.classList.toggle("shut",!open)}
 function saveGroups(){try{localStorage.setItem(GK,JSON.stringify([...openGroups]))}catch(e){}}
 function toggleGroup(g){loadGroups();const open=!openGroups.has(g);if(open)openGroups.add(g);else openGroups.delete(g);saveGroups();
   const b=document.querySelector('.grp[data-grp="'+g+'"]'),body=$("grp-"+g);if(b)b.setAttribute("aria-expanded",String(open));if(body)body.classList.toggle("shut",!open)}
@@ -1276,7 +1276,7 @@ function renderNav(){loadGroups();loadSubs();
     h+=`<div class="gbody${open?"":" shut"}" id="grp-${g}" role="group" aria-label="${label}"><div class="gin">`;
     const navBtn=s=>{const n=badge(s.id);return `<button class="nv" style="--c:${s.color}" data-goto="${s.id}" ${s.id===active?'aria-current="page"':""}><span class="ic">${ic(s.icon)}</span><span class="t">${esc(s.label)}</span>${n?`<span class="n">${n}</span>`:""}</button>`},shown={};
     const subHtml=n=>{const items=by[g].filter(x=>x.sub===n),so=openSubs.has(n),sn=items.reduce((a,x)=>a+(Number(badge(x.id))||0),0);
-      return `<button type="button" class="sgrp" style="--c:${SUB_COLOR[n]}" data-sub="${n}" aria-expanded="${so}" aria-controls="sub-${n}"><span class="ic">${ic(SUB_ICON[n],14)}</span><span class="gt">${n}</span><span class="cnt">${items.length}</span>${sn?`<span class="gn">${sn}</span>`:""}${CHEV}</button><div class="gbody sbody${so?"":" shut"}" id="sub-${n}" role="group" aria-label="${n}"><div class="gin">${items.map(navBtn).join("")}</div></div>`};
+      return `<button type="button" class="sgrp" style="--c:${SUB_COLOR[n]}" data-sub="${n}" aria-expanded="${so}" aria-controls="${subId(n)}"><span class="ic">${ic(SUB_ICON[n],14)}</span><span class="gt">${n}</span><span class="cnt">${items.length}</span>${sn?`<span class="gn">${sn}</span>`:""}${CHEV}</button><div class="gbody sbody${so?"":" shut"}" id="${subId(n)}" role="group" aria-label="${n}"><div class="gin">${items.map(navBtn).join("")}</div></div>`};
     by[g].forEach(s=>{if(!s.sub){h+=navBtn(s);return}
       if(shown.done)return;shown.done=1;NOC_SUBS.filter(n=>by[g].some(x=>x.sub===n)).forEach(n=>{h+=subHtml(n)})});
     h+=`</div></div>`});
