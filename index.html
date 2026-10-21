@@ -70,6 +70,14 @@ button{cursor:pointer}
 .gbody.shut{grid-template-rows:0fr;visibility:hidden;transition:grid-template-rows .26s ease,visibility 0s .26s}
 .gin{min-height:0;overflow:hidden;padding:3px}
 @media (prefers-reduced-motion:reduce){.gbody,.gbody.shut,.grp .chev{transition:none}}
+.sgrp{--c:#94A3B8;display:flex;align-items:center;gap:9px;width:100%;margin:2px 0;border:0;background:none;color:var(--side-ink);border-radius:9px;padding:6px 10px;text-align:left;font-size:12.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;transition:background .15s}
+.sgrp:hover{background:rgba(255,255,255,.06);color:#fff}
+.sgrp .ic{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--c) 26%,transparent);color:color-mix(in srgb,var(--c) 55%,#fff)}
+.sgrp .gt{flex:1;min-width:0}.sgrp .cnt{flex:none;font-size:11px;font-weight:600;opacity:.6;letter-spacing:0}
+.sgrp .gn{flex:none;background:#E11D48;color:#fff;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:0;padding:0 7px;line-height:18px}.sgrp[aria-expanded="true"] .gn{display:none}
+.sgrp .chev{flex:none;display:grid;place-items:center;transition:transform .25s ease}.sgrp[aria-expanded="false"] .chev{transform:rotate(-90deg)}
+.sbody .gin{border-left:1px solid rgba(255,255,255,.14);margin-left:19px;padding-left:6px}
+.subh{display:flex;align-items:center;gap:8px;margin:18px 0 8px;font-size:14px;color:var(--ink)}.subh .ic{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 18%,var(--card));color:var(--c)}
 .nv{--c:#60A5FA;display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;color:var(--side-ink);padding:7px 10px;border-radius:9px;text-align:left;font-size:13.5px;font-weight:500;transition:background .15s,transform .15s}
 .nv .ic{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;flex:none;background:color-mix(in srgb,var(--c) 26%,transparent);color:color-mix(in srgb,var(--c) 55%,#fff)}
 .nv:hover{background:rgba(255,255,255,.06);color:#fff;transform:translateX(2px)}
@@ -485,6 +493,8 @@ const SECTIONS=[
  {id:"store",label:"Office block store",group:"Shared",color:"#B45309",icon:"box"},
  {id:"leave",label:"Annual leave",group:"Shared",color:"#2563EB",icon:"cal"}
 ];
+const NOC_SUBS=["Power","Ethernet"],NOC_SUB_OF={pfe:"Power",ups:"Power",rectifier:"Power",traffic:"Ethernet",ciena:"Ethernet",routers:"Ethernet",firewall:"Ethernet",planet:"Ethernet",cswitch:"Ethernet"},SUB_ICON={Power:"bolt",Ethernet:"router"},SUB_COLOR={Power:"#F59E0B",Ethernet:"#3B82F6"};
+SECTIONS.forEach(s=>{if(s.group==="NOC"&&NOC_SUB_OF[s.id])s.sub=NOC_SUB_OF[s.id]});
 const SEC=Object.fromEntries(SECTIONS.map(s=>[s.id,s]));
 
 /* ---------- store ---------- */
@@ -867,6 +877,8 @@ function badge(id){switch(id){case"alarms":return activeAlarms().length;case"inc
   case"cctv":return data.cameras.filter(c=>c.status==="Not active").length;case"problems":return data.problems.filter(p=>p.status!=="Fixed").length;case"clearance":return clrDue().length;
   case"tasks":return data.tasks.filter(t=>t.status!=="Done").length;case"gatelog":return gateInside().length+data.gateLog.filter(g=>g.status==="Requested").length;
   case"spares":return data.genSpares.filter(s=>(+s.qty||0)<(+s.minQty||0)).length;case"fuel":{const s=fuelStats();return s.phase==="empty"&&!s.pendingOrder?1:0}}return 0}
+const tileBtn=s=>`<button class="tile" style="--c:${s.color}" data-goto="${s.id}"><span class="ic">${ic(s.icon,17)}</span><span><b>${esc(s.label)}</b><small>${esc(summary(s.id))}</small></span></button>`;
+function noc_tiles(skip){const L=SECTIONS.filter(s=>s.group==="NOC"&&s.id!==skip);return `<div class="tiles">${L.filter(s=>!s.sub).map(tileBtn).join("")}</div>`+NOC_SUBS.map(n=>`<h4 class="subh" style="--c:${SUB_COLOR[n]}"><span class="ic">${ic(SUB_ICON[n],14)}</span>${n}</h4><div class="tiles">${L.filter(s=>s.sub===n).map(tileBtn).join("")}</div>`).join("")}
 function summary(id){const n=(c,f)=>data[c].filter(f||(()=>1)).length;switch(id){
   case"schedule":return "Weekly and monthly duty roster";case"org":return n("staff",s=>s.dept!=="Leadership")+" staff";case"noc":return activeAlarms().length+" active alarms";
   case"traffic":return n("circuits")+" links";case"alarms":return activeAlarms().length+" active";case"pfe":return n("pfe")+" readings";case"ups":return n("ups")+" readings";case"rectifier":return n("rectifier")+" readings";
@@ -1144,7 +1156,7 @@ Object.assign(VIEWS,{
   <div class="grid g2" style="margin-top:14px"><div class="card" id="attn"><h3>Needs attention <span class="hint">· ${al.length} item${al.length===1?"":"s"}</span></h3>${al.length?`<div class="alerts">${al.map(x=>`<button class="alert" style="--c:${x.c}" data-goto="${x.go}"><span><b>${esc(x.t)}</b><small>${esc(x.dept)} · ${esc(x.d)}</small></span><i>Open</i></button>`).join("")}</div>`:`<div class="empty">Nothing needs attention right now.</div>`}</div>
    <div class="card"><h3>Who is on shift</h3>${["NOC","Generator","Security"].map(d=>{const s=curShift(d),on=onShift(d);return `<div class="kv"><span><b>${esc(SCHED[d].name)}</b><div class="hint">Shift ${s?esc(s.k)+", "+fmt12(s.from)+" to "+fmt12(s.to):"—"}</div></span><span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">${on.length?on.map(p=>`<span title="${esc(p.name)}">${av(p.name,d,28)}</span>`).join(""):`<span class="hint">Not assigned</span>`}</span></div>`}).join("")}
     <div class="kv"><span><b>CLS Manager</b><div class="hint">Mohamed Dahir Ali</div></span><button class="btn ghost sm" data-goto="org">Reporting line</button></div></div></div>
-  ${groups.map(g=>`<h3>${g==="Shared"?"Shared by all teams":g}</h3><div class="tiles">${SECTIONS.filter(s=>s.group===g).map(s=>`<button class="tile" style="--c:${s.color}" data-goto="${s.id}"><span class="ic">${ic(s.icon,17)}</span><span><b>${esc(s.label)}</b><small>${esc(summary(s.id))}</small></span></button>`).join("")}</div>`).join("")}`},
+  ${groups.map(g=>`<h3>${g==="Shared"?"Shared by all teams":g}</h3>${g==="NOC"?noc_tiles():`<div class="tiles">${SECTIONS.filter(s=>s.group===g).map(tileBtn).join("")}</div>`}`).join("")}`},
  schedule(){const m=nowMin(),dd=dutyDate();
   const lane=(dept)=>SCHED[dept].shifts.map(s=>{let a=tmin(s.from),b=tmin(s.to);const segs=a<b?[[a,b]]:[[a,1440],[0,b]];const col=DHEX[dept];
     return segs.map(([x,y])=>`<div class="blk ${inShift(s,m)?"now":""}" style="left:${x/1440*100}%;width:${(y-x)/1440*100}%;background:color-mix(in srgb,${col} ${inShift(s,m)?100:60}%,#94A3B8)">${esc(s.k)}</div>`).join("")}).join("")+`<div class="nowline" style="left:${m/1440*100}%"></div>`;
@@ -1183,7 +1195,7 @@ Object.assign(VIEWS,{
   <div class="grid g2" style="margin-top:14px"><div class="card"><h3>NOC needs attention</h3>${al.length?`<div class="alerts">${al.map(x=>`<button class="alert" style="--c:${x.c}" data-goto="${x.go}"><span><b>${esc(x.t)}</b><small>${esc(x.d)}</small></span><i>Open</i></button>`).join("")}</div>`:`<div class="empty">Nothing needs attention right now.</div>`}</div>
    <div class="card"><h3>Maximum throughput by link${lt?` <span class="hint">· ${fd(lt.date)}</span>`:""}</h3>${links.length?`<div class="bars">${links.map(x=>`<div class="bar"><span class="nm" title="${esc(x.c.name)}">${esc(x.c.name)} <span class="hint mono">${esc(x.c.port||"")}</span></span><span class="track"><i style="width:${Math.min(100,x.p)}%;background:${tcolor(x.p)}"></i></span><b>${x.p}%</b></div>`).join("")}</div>
     <div class="legend"><span><i style="background:#0EA5E9"></i>Low 1–50%</span><span><i style="background:#16A34A"></i>Mid 51–89%</span><span><i style="background:#DC2626"></i>High 90–100%</span></div>`:`<div class="empty">Add circuits and a nightly throughput record to see link usage.</div>`}</div></div>
-  <h3>NOC modules</h3><div class="tiles">${SECTIONS.filter(s=>s.group==="NOC"&&s.id!=="noc").map(s=>`<button class="tile" style="--c:${s.color}" data-goto="${s.id}"><span class="ic">${ic(s.icon,17)}</span><span><b>${esc(s.label)}</b><small>${esc(summary(s.id))}</small></span></button>`).join("")}</div>`},
+  <h3>NOC modules</h3>${noc_tiles("noc")}`},
  climate(){return `<div class="tools"><div class="seg" role="group" aria-label="Room and reading">${[["PR","temp","Power Room temperature"],["PR","hum","Power Room humidity"],["DH","temp","Data Host Room temperature"],["DH","hum","Data Host Room humidity"]].map(([r,m,l])=>`<button type="button" data-env="${r}:${m}" aria-pressed="${envSel===r+":"+m}">${l}</button>`).join("")}</div></div>`+envView(...envSel.split(":"))},
  fuel(){const st=fuelStats(),c=st.cur;let steps="";
   if(c){const S1=c.small1,S2=c.small2;steps=`<div class="timeline">${c.order?`<div class="step done"><div class="b">✓</div><div><div class="t">Fuel ordered</div><div class="s">${fd(c.order)}</div></div></div>`:""}
@@ -1247,18 +1259,26 @@ let active="overview",lastActive=null;
 const GK="cls-hub-groups";let openGroups=null,navSeen=null;
 const GICON={Dashboard:"grid",NOC:"router",Generator:"bolt",Security:"shield",Shared:"people"};
 function loadGroups(){if(openGroups)return;openGroups=new Set();try{const a=JSON.parse(localStorage.getItem(GK)||"null");if(Array.isArray(a))a.forEach(x=>{if(GROUPS[x])openGroups.add(x)})}catch(e){}}
+let openSubs=null;const SK="cls-hub-subs";
+function loadSubs(){if(openSubs)return;openSubs=new Set();try{const a=JSON.parse(localStorage.getItem(SK)||"null");if(Array.isArray(a))a.forEach(x=>{if(NOC_SUBS.includes(x))openSubs.add(x)})}catch(e){}}
+function saveSubs(){try{localStorage.setItem(SK,JSON.stringify([...openSubs]))}catch(e){}}
+function toggleSub(n){loadSubs();const open=!openSubs.has(n);if(open)openSubs.add(n);else openSubs.delete(n);saveSubs();
+  const b=document.querySelector('.sgrp[data-sub="'+n+'"]'),body=$("sub-"+n);if(b)b.setAttribute("aria-expanded",String(open));if(body)body.classList.toggle("shut",!open)}
 function saveGroups(){try{localStorage.setItem(GK,JSON.stringify([...openGroups]))}catch(e){}}
 function toggleGroup(g){loadGroups();const open=!openGroups.has(g);if(open)openGroups.add(g);else openGroups.delete(g);saveGroups();
   const b=document.querySelector('.grp[data-grp="'+g+'"]'),body=$("grp-"+g);if(b)b.setAttribute("aria-expanded",String(open));if(body)body.classList.toggle("shut",!open)}
 const CHEV='<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
-function renderNav(){loadGroups();
-  if(navSeen!==active){navSeen=active;const ag=SEC[active].group;if(!openGroups.has(ag)){openGroups.add(ag);saveGroups()}}
+function renderNav(){loadGroups();loadSubs();
+  if(navSeen!==active){navSeen=active;const ag=SEC[active].group;if(!openGroups.has(ag)){openGroups.add(ag);saveGroups()}const as=SEC[active].sub;if(as&&!openSubs.has(as)){openSubs.add(as);saveSubs()}}
   const by={};SECTIONS.forEach(s=>{(by[s.group]=by[s.group]||[]).push(s)});let h="";
   Object.keys(by).forEach(g=>{const open=openGroups.has(g),label=g==="Shared"?"Shared by all teams":g,total=by[g].reduce((a,s)=>a+(Number(badge(s.id))||0),0);
     h+=`<button type="button" class="grp" style="--gc:${GROUPS[g]}" data-grp="${g}" aria-expanded="${open}" aria-controls="grp-${g}"><span class="gi">${ic(GICON[g],15)}</span><span class="gt">${label}</span>${total?`<span class="gn" title="${total} need attention">${total}</span>`:""}${CHEV}</button>`;
     h+=`<div class="gbody${open?"":" shut"}" id="grp-${g}" role="group" aria-label="${label}"><div class="gin">`;
-    by[g].forEach(s=>{const n=badge(s.id);
-      h+=`<button class="nv" style="--c:${s.color}" data-goto="${s.id}" ${s.id===active?'aria-current="page"':""}><span class="ic">${ic(s.icon)}</span><span class="t">${esc(s.label)}</span>${n?`<span class="n">${n}</span>`:""}</button>`});
+    const navBtn=s=>{const n=badge(s.id);return `<button class="nv" style="--c:${s.color}" data-goto="${s.id}" ${s.id===active?'aria-current="page"':""}><span class="ic">${ic(s.icon)}</span><span class="t">${esc(s.label)}</span>${n?`<span class="n">${n}</span>`:""}</button>`},shown={};
+    const subHtml=n=>{const items=by[g].filter(x=>x.sub===n),so=openSubs.has(n),sn=items.reduce((a,x)=>a+(Number(badge(x.id))||0),0);
+      return `<button type="button" class="sgrp" style="--c:${SUB_COLOR[n]}" data-sub="${n}" aria-expanded="${so}" aria-controls="sub-${n}"><span class="ic">${ic(SUB_ICON[n],14)}</span><span class="gt">${n}</span><span class="cnt">${items.length}</span>${sn?`<span class="gn">${sn}</span>`:""}${CHEV}</button><div class="gbody sbody${so?"":" shut"}" id="sub-${n}" role="group" aria-label="${n}"><div class="gin">${items.map(navBtn).join("")}</div></div>`};
+    by[g].forEach(s=>{if(!s.sub){h+=navBtn(s);return}
+      if(shown.done)return;shown.done=1;NOC_SUBS.filter(n=>by[g].some(x=>x.sub===n)).forEach(n=>{h+=subHtml(n)})});
     h+=`</div></div>`});
   $("sidenav").innerHTML=h}
 function countUp(){if(reduced())return;document.querySelectorAll("#view .stat .v, #view .hs b").forEach(el=>{if(el.children.length)return;const t=el.textContent.trim();if(!/^\d{1,4}$/.test(t))return;const end=+t;if(end<2)return;const t0=performance.now();
@@ -1336,11 +1356,12 @@ document.querySelector(".theme").addEventListener("click",e=>{const b=e.target.c
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{
   const chip=e.target.closest("#modal .chip[data-chip]");if(chip){chip.classList.toggle("on");chip.setAttribute("aria-pressed",String(chip.classList.contains("on")));return}
-  const t=e.target.closest("[data-grp],[data-goto],[data-add],[data-addc],[data-addp],[data-edit],[data-del],[data-csv],[data-close],[data-car],[data-cdot],[data-env],[data-tdept],[data-addups],[data-glmode],[data-glnav],[data-rmode],[data-rnav],[data-rfill],[data-qty],[data-area],[data-quick],[data-gs],#burger,#backBtn,#scrim,#doDel");
+  const t=e.target.closest("[data-grp],[data-sub],[data-goto],[data-add],[data-addc],[data-addp],[data-edit],[data-del],[data-csv],[data-close],[data-car],[data-cdot],[data-env],[data-tdept],[data-addups],[data-glmode],[data-glnav],[data-rmode],[data-rnav],[data-rfill],[data-qty],[data-area],[data-quick],[data-gs],#burger,#backBtn,#scrim,#doDel");
   if(!t){if(e.target===$("backdrop"))closeModal();return}
   if(t.id==="burger"){$("side").classList.add("open");$("scrim").hidden=false}
   else if(t.id==="backBtn"){goBack()}
   else if(t.dataset.grp){toggleGroup(t.dataset.grp)}
+  else if(t.dataset.sub){toggleSub(t.dataset.sub)}
   else if(t.id==="scrim")closeSide();
   else if(t.id==="doDel"){const d=formCtx.del;closeModal();delRec(d.col,d.id).then(()=>toast("Deleted"))}
   else if(t.dataset.close!==undefined)closeModal();
