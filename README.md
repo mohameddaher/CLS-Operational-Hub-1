@@ -43,3 +43,23 @@ Every later `git push` (or file upload on GitHub) redeploys automatically.
 - If `config.js` is left unfilled, the app still opens and saves on that device only.
 
 - Generator load: to load the recorded week (2 to 8 Oct 2026), run `supabase-import-gen-load.sql` in the Supabase SQL Editor. Running it twice does not create duplicates.
+
+## Email reports (weekly and monthly)
+
+`api/report.js` emails a summary (link throughput, generator load, PFE, UPS, alarms, incidents, activities, tasks, gate clearances) to your address. Vercel runs it by itself: **every Monday 07:00** (Mogadishu) for the last 7 days, and **on the 1st of each month 07:00** for the previous month. Times are set in `vercel.json` under `crons` (they are in UTC).
+
+Set up once:
+
+1. **Resend** (resend.com, free): sign up with the email that should receive the report, then **API Keys, Create API Key**. Copy it.
+2. **Supabase**: Project Settings, API, copy the **service_role** key. It stays only in Vercel (never in `config.js` or GitHub).
+3. **Vercel**: Project, Settings, Environment Variables, add (Production):
+   - `SUPABASE_URL`: your Project URL
+   - `SUPABASE_SERVICE_KEY`: the service_role key
+   - `RESEND_API_KEY`: the Resend key
+   - `REPORT_TO`: the email address(es), comma separated
+   - `CRON_SECRET`: any long random text you make up
+   - optional `REPORT_FROM` (after you verify your domain in Resend) and `APP_URL`
+4. **Redeploy** (Deployments, latest, Redeploy).
+5. **Test**: open `https://YOUR-SITE/api/report?type=weekly&secret=YOUR_CRON_SECRET&preview=1` to see the report, and without `&preview=1` to email it now.
+
+Until you verify a domain in Resend, mail can only be sent to the email you signed up to Resend with.
