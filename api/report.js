@@ -20,7 +20,7 @@ const esc = v => String(v == null ? "" : v).replace(/[&<>"]/g, c => ({ "&": "&am
 const num = v => { const n = parseFloat(v); return isFinite(n) ? n : null; };
 const avg = a => { a = a.filter(x => x != null); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; };
 const r1 = v => v == null ? "-" : String(Math.round(v * 10) / 10);
-const u = (v, unit) => v == null ? "-" : r1(v) + " " + unit;
+const withUnit = (v, unit) => v == null ? "-" : r1(v) + " " + unit;
 
 function localToday(now) { const t = new Date(now.getTime() + TZ_OFFSET_H * 36e5); return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate())); }
 
@@ -64,13 +64,13 @@ function buildReport(data, type, now) {
 
   // PFE
   { const recs = data.pfe.filter(r => inP(r.date));
-    const rows = ["Converter 1", "Converter 2"].map(c => { const x = recs.filter(r => r.converter === c); return [c, u(avg(x.map(r => num(r.voltage))), "V"), u(avg(x.map(r => num(r.current))), "mA"), String(x.length)]; });
+    const rows = ["Converter 1", "Converter 2"].map(c => { const x = recs.filter(r => r.converter === c); return [c, withUnit(avg(x.map(r => num(r.voltage))), "V"), withUnit(avg(x.map(r => num(r.current))), "mA"), String(x.length)]; });
     add("Power Feeding Equipment", recs.length ? table(["Converter", "Avg voltage", "Avg current", "Readings"], rows) : note("No PFE reading was recorded in this period.")); }
 
   // UPS
   { const recs = data.ups.filter(r => inP(r.date));
     const rows = ["UPS A1", "UPS B1"].map(u => { const x = recs.filter(r => r.unit === u), loads = x.flatMap(r => [1, 2, 3].map(i => num(r["ld" + i]))).filter(v => v != null);
-      return [u, u(avg(x.map(r => avg([1, 2, 3].map(i => num(r["o_pv" + i]))))), "V"), loads.length ? r1(avg(loads)) + "%" : "-", loads.length ? Math.max(...loads) + "%" : "-", String(x.length)]; });
+      return [u, withUnit(avg(x.map(r => avg([1, 2, 3].map(i => num(r["o_pv" + i]))))), "V"), loads.length ? r1(avg(loads)) + "%" : "-", loads.length ? Math.max(...loads) + "%" : "-", String(x.length)]; });
     add("Huawei UPS", recs.length ? table(["UPS", "Avg output V", "Avg load", "Max load", "Sheets"], rows) : note("No UPS sheet was recorded in this period.")); }
 
   // Alarms and incidents
