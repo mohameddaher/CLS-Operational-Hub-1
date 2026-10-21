@@ -527,7 +527,7 @@ function av(name,dept,size){return `<span class="av" style="--c:${DHEX[dept]||"#
 
 /* ---------- shift schedule (from the staff schedule overview) ---------- */
 const SCHED={
- NOC:{name:"NOC team",shifts:[{k:"A",from:"08:30",to:"16:30"}]},
+ NOC:{name:"NOC team",shifts:[{k:"A",from:"08:30",to:"16:30"},{k:"B & C",from:"16:30",to:"08:30",next:1}]},
  Generator:{name:"Generator operators",shifts:[{k:"A",from:"08:00",to:"14:00"},{k:"B",from:"14:00",to:"20:00"},{k:"C",from:"20:00",to:"02:00",next:1},{k:"D",from:"02:00",to:"08:00"}]},
  Security:{name:"Security team",shifts:[{k:"A",from:"08:00",to:"14:00"},{k:"B",from:"14:00",to:"20:00"},{k:"C",from:"20:00",to:"02:00",next:1},{k:"D",from:"02:00",to:"08:00"}]}
 };
@@ -541,9 +541,11 @@ const SLOT_P={A:"p1",B:"p2",C:"p1",D:"p2"},ROSTER_TEAMS=["Generator","Security"]
 const rosterRec=(t,d)=>data.roster.find(r=>r.team===t&&r.date===d);
 function dutyDate(){return iso(nowMin()<tmin("08:00")?addDays(today(),-1):today())}
 function rosterPool(t){const all=byDept(t),ops=t==="Generator"?all.filter(p=>/operator/i.test(p.role||"")):all;return (ops.length>=2?ops:all)}
-function onShift(dept){const s=curShift(dept);if(!s)return [];if(dept==="NOC")return byDept("NOC");
+function onShift(dept){const s=curShift(dept);if(!s)return [];if(dept==="NOC"){const ks=s.k.split(/\s*&\s*/);return byDept("NOC").filter(p=>p.shift&&(p.shift===s.k||ks.includes(p.shift)))}
   const rec=rosterRec(dept,dutyDate()),n=rec&&rec[SLOT_P[s.k]];return n?byDept(dept).filter(p=>p.name===n):[]}
-function shiftLabel(p){if(p.dept==="NOC")return "A";if(!ROSTER_TEAMS.includes(p.dept))return p.shift||"";const rec=rosterRec(p.dept,dutyDate());if(!rec)return "";return rec.p1===p.name?"A & C":rec.p2===p.name?"B & D":"Off"}
+const isDayRole=p=>/mechanic|cook|clean|cls manager/i.test(p.role||"");
+const dayStaff=()=>crew().filter(isDayRole);
+function shiftLabel(p){if(isDayRole(p))return "A";if(p.dept==="NOC")return p.shift||"";if(!ROSTER_TEAMS.includes(p.dept))return p.shift||"";const rec=rosterRec(p.dept,dutyDate());if(!rec)return "";return rec.p1===p.name?"A & C":rec.p2===p.name?"B & D":"Off"}
 function shiftEnds(s){return s?fmt12(s.to):""}
 const circuits=()=>[...data.circuits].sort((a,b)=>(a.order||99)-(b.order||99));
 const SHIFT=["Day","Night"];
@@ -901,6 +903,10 @@ function routeSVG(){return `<svg class="route" viewBox="0 0 700 86" role="img" a
  <path class="flow" d="M30 34 C150 4,230 60,330 40 S520 18,670 44" fill="none" stroke="#7DD3FC" stroke-width="2.5" stroke-dasharray="2 7" stroke-linecap="round"/>
  <path d="M0 74c40-10 60 8 100 0s60 8 100 0 60 8 100 0 60 8 100 0 60 8 100 0 60 8 100 0 60 8 100 0" fill="none" stroke="#3B82F6" stroke-width="1.5" opacity=".5"/>
  ${[[30,34,"Djibouti",0],[232,37,"Bosaso",0],[450,31,"Mogadishu CLS",1],[670,44,"Mombasa",0]].map(([x,y,n,m])=>`<circle cx="${x}" cy="${y}" r="${m?9:5.5}" fill="${m?"#FDE047":"#E0F2FE"}" stroke="#0B2C6B" stroke-width="2"/>${m?`<circle cx="${x}" cy="${y}" r="15" fill="none" stroke="#FDE047" stroke-width="1.5" opacity=".6"/>`:""}<text x="${Math.min(Math.max(x,36),655)}" y="${y+(m?-22:24)}" text-anchor="middle" font-size="12.5" font-weight="${m?700:500}" fill="${m?"#FDE047":"#D6E6FF"}" font-family="Outfit,system-ui,sans-serif">${n}</text>`).join("")}</svg>`}
+function shiftExtras(){const noc=byDept("NOC"),un=noc.filter(p=>!p.shift),ds=dayStaff(),A=SCHED.NOC.shifts[0];
+  const nocCard=`<div class="card"><h3 style="margin-top:0;color:${DHEX.NOC}">NOC shift assignment <span class="hint">· Shift A or Shift B &amp; C</span></h3>${noc.length?`<div class="kvl">${noc.map(p=>`<div class="kv"><span>${av(p.name,"NOC",26)} ${esc(p.name)}</span><select class="rsel" style="max-width:130px;min-width:110px" data-ssel="${esc(p.id)}" aria-label="Shift for ${esc(p.name)}"><option value="">Not assigned</option>${["A","B & C"].map(k=>`<option value="${k}"${p.shift===k?" selected":""}>Shift ${k}</option>`).join("")}</select></div>`).join("")}</div>`:`<div class="empty">No NOC staff yet.</div>`}${un.length?`<p class="hint" style="margin-top:8px">${un.length} not assigned yet.</p>`:""}</div>`;
+  const dayCard=`<div class="card"><h3 style="margin-top:0">Day staff · Shift A <span class="hint">· ${fmt12(A.from)} to ${fmt12(A.to)}, 8 hours</span></h3>${ds.length?`<div class="kvl">${ds.map(p=>`<div class="kv"><span>${av(p.name,p.dept,26)} ${esc(p.name)}</span><span class="hint">${esc(p.role||"")}</span></div>`).join("")}</div>`:`<div class="empty">Mechanic, cook, cleaner and CLS manager appear here.</div>`}</div>`;
+  return `<div class="grid g2" style="margin-top:14px">${nocCard}${dayCard}</div>`}
 /* ---------- duty roster (weekly / monthly) ---------- */
 const MONF=["January","February","March","April","May","June","July","August","September","October","November","December"];
 let rosterMode="week",rosterAnchor=null;
@@ -1090,12 +1096,13 @@ Object.assign(VIEWS,{
  schedule(){const m=nowMin(),dd=dutyDate();
   const lane=(dept)=>SCHED[dept].shifts.map(s=>{let a=tmin(s.from),b=tmin(s.to);const segs=a<b?[[a,b]]:[[a,1440],[0,b]];const col=DHEX[dept];
     return segs.map(([x,y])=>`<div class="blk ${inShift(s,m)?"now":""}" style="left:${x/1440*100}%;width:${(y-x)/1440*100}%;background:color-mix(in srgb,${col} ${inShift(s,m)?100:60}%,#94A3B8)">${esc(s.k)}</div>`).join("")}).join("")+`<div class="nowline" style="left:${m/1440*100}%"></div>`;
-  const who=(dept,s)=>{if(dept==="NOC")return byDept("NOC").map(p=>esc(p.name)).join(", ")||`<span class="hint">Not assigned</span>`;const rec=rosterRec(dept,dd),n=rec&&rec[SLOT_P[s.k]];return n?esc(n):`<span class="hint">Not assigned</span>`};
+  const who=(dept,s)=>{if(dept==="NOC"){const ks=s.k.split(/\s*&\s*/);return byDept("NOC").filter(p=>p.shift===s.k||ks.includes(p.shift)).map(p=>esc(p.name)).join(", ")||`<span class="hint">Not assigned</span>`}const rec=rosterRec(dept,dd),n=rec&&rec[SLOT_P[s.k]];return n?esc(n):`<span class="hint">Not assigned</span>`};
   const tbl=dept=>`<div class="tablewrap"><table class="shtable" style="min-width:0"><thead><tr><th>Shift</th><th>Start</th><th>End</th><th>Staff</th></tr></thead><tbody>${SCHED[dept].shifts.map(s=>{
     return `<tr class="${inShift(s,m)?"now":""}"><td><b class="mono">${esc(s.k)}</b>${inShift(s,m)?" "+pill("On now","ok"):""}</td><td>${fmt12(s.from)}</td><td>${fmt12(s.to)}${s.next?" (next day)":""}</td><td>${who(dept,s)}</td></tr>`}).join("")}</tbody></table></div>`;
-  return head("Staff schedule overview","The NOC team works one day shift (A, 8 hours). Generator operators and security have two people on duty every 24 hours, each working 6 hours by day and 6 by night. The red line marks the time now in Mogadishu.")+
+  return head("Staff schedule overview","NOC has Shift A (day) and Shift B &amp; C (evening and night). Mechanic, cook, cleaner and the CLS manager work Shift A, 8 hours. Generator operators and security have two people on duty every 24 hours, each working 6 hours by day and 6 by night. The red line marks the time now in Mogadishu.")+
   `<div class="card"><h3>24-hour view <span class="hint">· ${hhmm()} EAT</span></h3><div class="chart"><div class="sched">${["NOC","Generator","Security"].map(d=>`<b style="font-size:13px">${esc(SCHED[d].name)}</b><div class="lane">${lane(d)}</div>`).join("")}<span></span><div class="ticks">${["00","03","06","09","12","15","18","21","24"].map(t=>`<span>${t}</span>`).join("")}</div></div></div></div>
   <div class="grid g3" style="margin-top:14px">${["NOC","Generator","Security"].map(d=>`<div><h3 style="margin-top:0;color:${DHEX[d]}">${esc(SCHED[d].name)}${d==="NOC"?"":` <span class="hint">· duty day ${fds(dd)}</span>`}</h3>${tbl(d)}</div>`).join("")}</div>
+  ${shiftExtras()}
   ${rosterView()}`},
  org(){const P=people(),find=n=>P.find(p=>p.name===n),lead=P.filter(p=>p.dept==="Leadership");
   const chain=[];let top=lead.find(p=>!p.reportsTo||!find(p.reportsTo))||lead[0];const seen=new Set();while(top&&!seen.has(top.name)){seen.add(top.name);chain.push(top);top=P.find(p=>p.reportsTo===top.name&&(p.dept==="Leadership"||p.dept==="Management"))}
@@ -1301,6 +1308,7 @@ document.addEventListener("click",async e=>{
   else if(t.dataset.gs){const [id,s]=t.dataset.gs.split(":"),r=data.gateLog.find(x=>x.id===id);if(!r)return;const n={...r,status:s};if(s==="Inside"&&!n.tin)n.tin=hhmm();if(s==="Exited"&&!n.tout)n.tout=hhmm();t.disabled=true;if(await saveRec("gateLog",n))toast(s==="Approved"?"Clearance approved":s==="Inside"?"Checked in at "+n.tin:"Checked out at "+n.tout)}
 });
 document.addEventListener("change",e=>{const v=e.target.dataset&&e.target.dataset.rsel;if(!v)return;const [t,di,k]=v.split("|");rosterSet(t,di,k,e.target.value)});
+document.addEventListener("change",e=>{const id=e.target.dataset&&e.target.dataset.ssel;if(!id)return;const p=data.staff.find(x=>x.id===id);if(!p)return;const n={...p};if(e.target.value)n.shift=e.target.value;else delete n.shift;saveRec("staff",n)});
 document.addEventListener("submit",e=>{if(e.target.id==="recForm"){e.preventDefault();submitForm()}});
 document.addEventListener("input",e=>{const k=e.target.dataset&&e.target.dataset.search;if(!k)return;searchQ[k]=e.target.value;$("tbl-"+k).innerHTML=tbody(k);const c=$("cnt-"+k);if(c)c.textContent=rowsFor(k).length+" records"});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("backdrop").hidden)closeModal();else closeSide()}
