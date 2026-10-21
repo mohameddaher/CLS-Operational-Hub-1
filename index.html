@@ -475,7 +475,7 @@ const SECTIONS=[
  {id:"asn",label:"ASN",group:"NOC",color:"#0E7490",icon:"asn"},
  {id:"prefixes",label:"IP address prefixes",group:"NOC",color:"#0D9488",icon:"ip"},
  {id:"routerips",label:"Router IP addresses",group:"NOC",color:"#1D4ED8",icon:"router"},
- {id:"activities",label:"Activity record",group:"NOC",color:"#16A34A",icon:"check"},
+ {id:"activities",label:"Activity record",group:"Shared",color:"#16A34A",icon:"check"},
  {id:"manholes",label:"Fiber cable manholes",group:"NOC",color:"#A16207",icon:"hole"},
  {id:"genload",label:"Generator load",group:"Generator",color:"#7C3AED",icon:"bolt"},
  {id:"fuel",label:"Fuel & tanks",group:"Generator",color:"#D97706",icon:"fuel"},
@@ -493,7 +493,7 @@ const SECTIONS=[
  {id:"store",label:"Office block store",group:"Shared",color:"#B45309",icon:"box"},
  {id:"leave",label:"Annual leave",group:"Shared",color:"#2563EB",icon:"cal"}
 ];
-const PE="Power and Environment",NOC_SUBS=[PE,"Ethernet"],NOC_SUB_OF={climate:PE,pfe:PE,ups:PE,rectifier:PE,traffic:"Ethernet",ciena:"Ethernet",routers:"Ethernet",firewall:"Ethernet",planet:"Ethernet",cswitch:"Ethernet",devices:"Ethernet",ips:"Ethernet",asn:"Ethernet",prefixes:"Ethernet",routerips:"Ethernet",incidents:"Ethernet"},SUB_ICON={[PE]:"bolt",Ethernet:"router"},SUB_COLOR={[PE]:"#F59E0B",Ethernet:"#3B82F6"},subId=n=>"sub-"+n.replace(/\W+/g,"-");
+const PE="Power and Environment",NOC_SUBS=[PE,"Ethernet"],NOC_SUB_OF={climate:PE,pfe:PE,ups:PE,rectifier:PE,traffic:"Ethernet",ciena:"Ethernet",routers:"Ethernet",firewall:"Ethernet",planet:"Ethernet",cswitch:"Ethernet",devices:"Ethernet",ips:"Ethernet",asn:"Ethernet",prefixes:"Ethernet",routerips:"Ethernet",incidents:"Ethernet",alarms:"Ethernet",manholes:"Ethernet"},SUB_ICON={[PE]:"bolt",Ethernet:"router"},SUB_COLOR={[PE]:"#F59E0B",Ethernet:"#3B82F6"},subId=n=>"sub-"+n.replace(/\W+/g,"-");
 SECTIONS.forEach(s=>{if(s.group==="NOC"&&NOC_SUB_OF[s.id])s.sub=NOC_SUB_OF[s.id]});
 const SEC=Object.fromEntries(SECTIONS.map(s=>[s.id,s]));
 
@@ -869,7 +869,7 @@ function alerts(){const out=[],lt=latestTraffic(),A=(c,t,d,go,dept)=>out.push({c
   const cam=data.cameras.filter(c=>c.status==="Not active");if(cam.length)A(SEC.cctv.color,`${cam.length} camera${cam.length>1?"s":""} not active`,cam.slice(0,3).map(c=>c.name).join(", "),"cctv","Security");
   const pr=data.problems.filter(p=>p.status!=="Fixed");if(pr.length)A(SEC.problems.color,`${pr.length} open problem${pr.length>1?"s":""}`,pr.slice(0,2).map(p=>p.system+": "+p.title).join("; "),"problems","Shared");
   const tk=data.tasks.filter(t=>t.status!=="Done"&&t.due&&parseD(t.due)<today());if(tk.length)A(SEC.tasks.color,`${tk.length} overdue task${tk.length>1?"s":""}`,tk.slice(0,2).map(t=>t.assignee+": "+t.title).join("; "),"tasks","Shared");
-  const act=data.activities.filter(a=>a.status!=="Completed"&&a.due&&parseD(a.due)<today());if(act.length)A(SEC.activities.color,`${act.length} overdue activit${act.length>1?"ies":"y"}`,act.slice(0,2).map(a=>a.title).join("; "),"activities","NOC");
+  const act=data.activities.filter(a=>a.status!=="Completed"&&a.due&&parseD(a.due)<today());if(act.length)A(SEC.activities.color,`${act.length} overdue activit${act.length>1?"ies":"y"}`,act.slice(0,2).map(a=>a.title).join("; "),"activities","Shared");
   const pd=paintDue();if(pd.open)A(SEC.painting.color,"Anti-corrosion round in progress",`${(pd.open.areas||[]).length} of ${AREAS.length} areas done`,"painting","Shared");else if(pd.next&&diff(today(),pd.next)<=21)A(SEC.painting.color,"Anti-corrosion painting due","Next round "+fd(pd.next)+" ("+rel(pd.next)+")","painting","Shared");
   const oos=data.inventory.filter(i=>remain(i)<=0);if(oos.length)A(SEC.store.color,`${oos.length} store item${oos.length>1?"s":""} out of stock`,oos.slice(0,3).map(i=>i.item).join(", "),"store","Shared");
   return out}
@@ -878,7 +878,7 @@ function badge(id){switch(id){case"alarms":return activeAlarms().length;case"inc
   case"tasks":return data.tasks.filter(t=>t.status!=="Done").length;case"gatelog":return gateInside().length+data.gateLog.filter(g=>g.status==="Requested").length;
   case"spares":return data.genSpares.filter(s=>(+s.qty||0)<(+s.minQty||0)).length;case"fuel":{const s=fuelStats();return s.phase==="empty"&&!s.pendingOrder?1:0}}return 0}
 const tileBtn=s=>`<button class="tile" style="--c:${s.color}" data-goto="${s.id}"><span class="ic">${ic(s.icon,17)}</span><span><b>${esc(s.label)}</b><small>${esc(summary(s.id))}</small></span></button>`;
-function noc_tiles(skip){const L=SECTIONS.filter(s=>s.group==="NOC"&&s.id!==skip);return `<div class="tiles">${L.filter(s=>!s.sub).map(tileBtn).join("")}</div>`+NOC_SUBS.map(n=>`<h4 class="subh" style="--c:${SUB_COLOR[n]}"><span class="ic">${ic(SUB_ICON[n],14)}</span>${n}</h4><div class="tiles">${L.filter(s=>s.sub===n).map(tileBtn).join("")}</div>`).join("")}
+function noc_tiles(skip){const L=SECTIONS.filter(s=>s.group==="NOC"&&s.id!==skip);const g0=L.filter(s=>!s.sub);return (g0.length?`<div class="tiles">${g0.map(tileBtn).join("")}</div>`:"")+NOC_SUBS.map(n=>`<h4 class="subh" style="--c:${SUB_COLOR[n]}"><span class="ic">${ic(SUB_ICON[n],14)}</span>${n}</h4><div class="tiles">${L.filter(s=>s.sub===n).map(tileBtn).join("")}</div>`).join("")}
 function summary(id){const n=(c,f)=>data[c].filter(f||(()=>1)).length;switch(id){
   case"schedule":return "Weekly and monthly duty roster";case"org":return n("staff",s=>s.dept!=="Leadership")+" staff";case"noc":return activeAlarms().length+" active alarms";
   case"traffic":return n("circuits")+" links";case"alarms":return activeAlarms().length+" active";case"pfe":return n("pfe")+" readings";case"ups":return n("ups")+" readings";case"rectifier":return n("rectifier")+" readings";
