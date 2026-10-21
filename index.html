@@ -345,6 +345,13 @@ svg .gl{stroke:var(--line)}
 .modal footer{padding:12px 20px 18px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
 .form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .form .full{grid-column:1/-1}
+.form.f3{grid-template-columns:repeat(3,1fr)}
+.fhead{font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);padding-top:6px;border-top:1px solid var(--line)}
+.fhead.sub{border:0;padding-top:0;margin-bottom:-6px;color:var(--ink);text-transform:none;letter-spacing:0;font-size:13px;font-weight:600}
+.upspaper{--accent:var(--pc);padding:0;overflow:hidden}.uphead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line)}.uphead b{font-size:17px;color:var(--pc)}.uphead .btn{margin-left:auto}
+.ptab{width:100%;min-width:0;font-size:13.5px}.ptab th{text-align:center}.ptab td{padding:7px 12px}.ptab td.mono{text-align:center}
+.ptab tr.sec td{background:color-mix(in srgb,var(--pc) 78%,#000);color:#fff;font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:5px 12px;border:0}
+.ptab tbody tr:hover td{background:transparent}.ptab tr.sec:hover td{background:color-mix(in srgb,var(--pc) 78%,#000)}
 .form label,.form .lbl{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--muted);min-width:0}
 .form input,.form select,.form textarea{border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--field);color:var(--ink);font-weight:400;font-size:14.5px;width:100%}
 .form textarea{min-height:72px;resize:vertical}
@@ -597,8 +604,12 @@ const SCHEMAS={
  pfe:{title:"PFE reading",fields:[{k:"date",label:"Date",type:"date",req:1,def:todayIso,full:1,hint:"One reading per converter per day."},{k:"converter",label:"Converter",type:"select",options:["Converter 1","Converter 2"],req:1,def:"Converter 1"},{k:"voltage",label:"Output voltage (V)",type:"number"},{k:"current",label:"Line current (mA)",type:"number"},{k:"earth",label:"Station / ocean ground",type:"select",options:["","Ocean ground","Station ground"]},...readingTail],
   cols:[dcol,{k:"converter",label:"Converter",f:r=>r.converter?pill(r.converter,r.converter==="Converter 2"?"info":"warn"):"—"},{k:"voltage",label:"Voltage (V)"},{k:"current",label:"Current (mA)"},{k:"earth",label:"Ground"},stcol,{k:"recordedBy",label:"Recorded by"}],sort:(a,b)=>String(b.date||"").localeCompare(String(a.date||""))||String(a.converter||"").localeCompare(String(b.converter||""))},
  env:{title:"room reading",fields:[...readingBase,{k:"room",label:"Room",type:"select",options:["PR","DH"],req:1,hint:"PR = Power Room, DH = Data Host Room"},{k:"temp",label:"Temperature (°C)",type:"number"},{k:"hum",label:"Humidity (%)",type:"number"},{k:"recordedBy",label:"Recorded by",type:"select",options:staffNames},{k:"notes",label:"Notes",type:"textarea",full:1}],sort:byDateDesc("date")},
- ups:{title:"UPS reading",fields:[...readingBase,{k:"inputV",label:"Input voltage (V)",type:"number"},{k:"outputV",label:"Output voltage (V)",type:"number"},{k:"load",label:"Load (%)",type:"number"},{k:"battery",label:"Battery capacity (%)",type:"number"},{k:"backup",label:"Backup time (min)",type:"number"},{k:"mode",label:"Working mode",type:"select",options:["","Normal (mains)","Battery","Bypass"]},...readingTail],
-  cols:[dcol,scol,{k:"inputV",label:"Input V"},{k:"outputV",label:"Output V"},{k:"load",label:"Load %"},{k:"battery",label:"Battery %"},{k:"backup",label:"Backup min"},{k:"mode",label:"Mode"},stcol,{k:"recordedBy",label:"Recorded by"}],sort:byDateDesc("date")},
+ ups:{title:"UPS reading",formCols:3,get fields(){const f=[...readingBase.map(x=>({...x,span:1})),{k:"unit",label:"UPS",type:"select",options:UPS_UNITS,req:1,def:"UPS A1"}];
+   UPS_SECT.forEach(S=>{f.push({type:"heading",label:S.t});S.rows.forEach(m=>{f.push({type:"heading",sub:1,label:m.l+(m.u?" ("+m.u+")":"")});[1,2,3].forEach(i=>f.push({k:m.k+i,label:"L"+i,vlabel:m.l+" L"+i,type:"number",min:m.min,max:m.max}))})});
+   f.push({type:"heading",label:"Sign off"},{k:"status",label:"Status",type:"select",options:["Normal","Warning","Alarm"],def:"Normal"},{k:"recordedBy",label:"Sign by your name",type:"select",options:staffNames,span:2},{k:"notes",label:"Notes",type:"textarea",full:1});return f},
+  get cols(){const tri=k=>r=>[1,2,3].map(i=>r[k+i]==null||r[k+i]===""?"–":esc(r[k+i])).join(" / ");
+   return [dcol,scol,{k:"unit",label:"UPS",f:r=>r.unit?pill(r.unit,r.unit==="UPS B1"?"info":"warn"):"—"},{k:"i_pv",label:"Input V",sub:"L1 / L2 / L3",f:tri("i_pv")},{k:"i_pc",label:"Input A",sub:"L1 / L2 / L3",f:tri("i_pc")},{k:"o_pv",label:"Output V",sub:"L1 / L2 / L3",f:tri("o_pv")},{k:"ld",label:"Load %",sub:"L1 / L2 / L3",f:tri("ld")},stcol,{k:"recordedBy",label:"Signed by"}]},
+  sort:(a,b)=>String(b.date||"").localeCompare(String(a.date||""))||String(a.shift||"").localeCompare(String(b.shift||""))||String(a.unit||"").localeCompare(String(b.unit||""))},
  rectifier:{title:"rectifier reading",fields:[...readingBase,{k:"acV",label:"AC input voltage (V)",type:"number"},{k:"dcV",label:"DC output voltage (V)",type:"number"},{k:"loadA",label:"Load current (A)",type:"number"},{k:"battA",label:"Battery current (A)",type:"number"},{k:"modules",label:"Rectifier modules working",type:"number"},...readingTail],
   cols:[dcol,scol,{k:"acV",label:"AC in V"},{k:"dcV",label:"DC out V"},{k:"loadA",label:"Load A"},{k:"battA",label:"Battery A"},{k:"modules",label:"Modules"},stcol,{k:"recordedBy",label:"Recorded by"}],sort:byDateDesc("date")},
  cienaPorts:{title:"Ciena port",fields:[{k:"slot",label:"Slot",type:"select",options:["6","13"],req:1,hint:"Shelf 6. Slot 6 = Djibouti, slot 13 = Mombasa"},{k:"port",label:"Port (29 to 44)",type:"number",req:1},{k:"status",label:"Status",type:"select",options:["Active","Not active","Unconfirmed"],def:"Active"},{k:"speed",label:"Rate",type:"select",options:["10G","100G","1G",""],def:"10G"},{k:"circuit",label:"Circuit / customer",full:1},{k:"notes",label:"Notes",type:"textarea",full:1}],
@@ -888,7 +899,25 @@ function envView(room,metric){const rn=room==="PR"?"Power Room (PR)":"Data Host 
   `<div class="grid g4">${stat("Latest day reading",l&&l.day!=null?l.day+u:"—",l?fd(l.date):"No reading yet","#F59E0B")}${stat("Latest night reading",l&&l.night!=null?l.night+u:"—",l?fd(l.date):"","#6366F1")}${stat("Average",a!=null?a.toFixed(1)+u:"—","last "+e.dates.length+" days")}${stat("Highest",mx.length?Math.max(...mx)+u:"—",mx.length?"Lowest "+Math.min(...mx)+u:"")}</div>
   <div class="card" style="margin-top:14px"><h3>${mn} of ${rn}</h3>${lineChart(e.dates.map(fds),[{name:"Day",color:"#F59E0B",values:e.day},{name:"Night",color:"#6366F1",values:e.night}],{unit:u,title:mn+" of "+rn,limit:metric==="temp"?27:70,limitLabel:"High above",min:metric==="hum"?0:null,max:metric==="hum"?100:null})}</div>
   <h3>Reading record</h3>${table(room+metric,"env",{preset:{room},filter:r=>r.room===room,cols:[dcol,scol,{k:metric,label:mn+" ("+u+")",f:r=>num(r[metric])!=null?`<b>${num(r[metric])}${u}</b>`:"—"},{k:"st",label:"Status",f:r=>envPill(metric,num(r[metric]))},{k:other,label:(other==="temp"?"Temperature (°C)":"Humidity (%)"),f:r=>num(r[other])!=null?num(r[other])+(other==="temp"?"°C":"%"):"—"},{k:"recordedBy",label:"Recorded by"},{k:"notes",label:"Notes"}]})}`}
+const UPS_UNITS=["UPS A1","UPS B1"];
+const UPS_SECT=[{t:"Main input",rows:[{k:"i_pv",l:"Phase voltage",u:"V",min:0,max:500},{k:"i_lv",l:"Line voltage",u:"V",min:0,max:900},{k:"i_pc",l:"Phase current",u:"A",min:0,max:2000},{k:"i_hz",l:"Frequency",u:"Hz",min:40,max:70},{k:"i_pf",l:"Power factor",u:"",min:0,max:1}]},
+ {t:"AC output",rows:[{k:"o_pv",l:"Phase voltage",u:"V",min:0,max:500},{k:"o_lv",l:"Line voltage",u:"V",min:0,max:900},{k:"o_pc",l:"Phase current",u:"A",min:0,max:2000}]},
+ {t:"UPS load",rows:[{k:"ld",l:"Load ratio",u:"%",min:0,max:100}]}];
 const CONVS=["Converter 1","Converter 2"];
+function upsView(){const rows=[...data.ups].sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.shift).localeCompare(String(b.shift)));
+  const av3=(x,k)=>avg([1,2,3].map(i=>num(x[k+i])));const fx=v=>v==null?"—":String(Math.round(v*100)/100);
+  const lastOf=u=>rows.filter(x=>x.unit===u).pop(),dates=[...new Set(rows.map(x=>x.date))].slice(-31);
+  const ser=(k,u,col)=>({name:u,color:col,values:dates.map(d=>{const x=rows.filter(q=>q.date===d&&q.unit===u&&av3(q,k)!=null).pop();return x?Math.round(av3(x,k)*10)/10:null})});
+  const stats=UPS_UNITS.map((u,i)=>{const l=lastOf(u),mx=l?Math.max(...[1,2,3].map(j=>num(l["ld"+j])).filter(v=>v!=null)):null;return stat(u+" load",l&&isFinite(mx)?mx+" %":"—",l?fd(l.date)+(l.shift?", "+esc(l.shift):""):"No reading yet",i?"var(--info)":"var(--warn)")}).join("");
+  const paper=(u,i)=>{const l=lastOf(u),cell=v=>v==null||v===""?"–":esc(v);
+    return `<div class="card upspaper" style="--pc:${i?"var(--info)":"var(--warn)"}"><div class="uphead"><b>${u}</b><span class="hint">${l?"Latest: "+fd(l.date)+(l.shift?" · "+esc(l.shift):"")+(l.recordedBy?" · signed by "+esc(l.recordedBy):""):"No reading yet"}</span><button class="btn ghost sm" data-addups="${u}">+ Reading</button></div>
+    ${l?`<table class="ptab"><thead><tr><th></th><th>L1</th><th>L2</th><th>L3</th></tr></thead><tbody>${UPS_SECT.map(S=>`<tr class="sec"><td colspan="4">${S.t}</td></tr>`+S.rows.map(m=>`<tr><td>${m.l}${m.u?` <span class="hint">${m.u}</span>`:""}</td>${[1,2,3].map(j=>`<td class="mono">${cell(l[m.k+j])}</td>`).join("")}</tr>`).join("")).join("")}</tbody></table>`:`<div class="empty">Use “+ Reading” to record the first sheet for ${u}.</div>`}</div>`};
+  return head("Huawei UPS readings","The UPS A1 and UPS B1 check sheet: main input, AC output and load ratio on each of the three phases. Sign each sheet with your name.")+
+  `<div class="grid g4">${stats}${stat("Readings recorded",rows.length,rows.filter(x=>x.status&&x.status!=="Normal").length+" with warning or alarm")}${stat("Units",UPS_UNITS.length,"UPS A1 and UPS B1")}</div>
+  <div class="grid g2" style="margin-top:14px">${UPS_UNITS.map(paper).join("")}</div>
+  <div class="grid g2" style="margin-top:14px"><div class="card"><h3>Load ratio, average of 3 phases</h3>${lineChart(dates.map(fds),[ser("ld","UPS A1","#F59E0B"),ser("ld","UPS B1","#0891B2")],{unit:" %",min:0,max:100,title:"UPS load ratio"})}</div>
+  <div class="card"><h3>Output phase voltage, average</h3>${lineChart(dates.map(fds),[ser("o_pv","UPS A1","#F59E0B"),ser("o_pv","UPS B1","#0891B2")],{unit:" V",title:"UPS output voltage"})}</div></div>
+  <h3>Reading record</h3>${table("ups","ups")}`}
 function pfeView(){const rows=[...data.pfe].sort((a,b)=>String(a.date).localeCompare(String(b.date))),dates=[...new Set(rows.map(r=>r.date))].slice(-31);
   const lastOf=c=>rows.filter(r=>r.converter===c&&(num(r.voltage)!=null||num(r.current)!=null)).pop();
   const card=(c,i)=>{const l=lastOf(c);return stat(c,l&&num(l.voltage)!=null?num(l.voltage)+" V":"—",l?(num(l.current)!=null?num(l.current)+" mA · ":"")+fd(l.date):"No reading yet",i?"var(--info)":"var(--warn)")};
@@ -978,7 +1007,7 @@ const VIEWS={
   `<div class="grid g4">${stat("Active alarms",al.length,data.alarms.length-al.length+" cleared")}${stat("Critical",c("Critical"),"","var(--bad)")}${stat("Major",c("Major"),"","#EA580C")}${stat("Minor and warning",c("Minor")+c("Warning"),"","var(--warn)")}</div><h3>Alarm log</h3>${table("alarms","alarms")}`},
  pfe(){return pfeView()},
  prHum(){return envView("PR","hum")},prTemp(){return envView("PR","temp")},dhHum(){return envView("DH","hum")},dhTemp(){return envView("DH","temp")},
- ups(){return readingView("ups","Huawei UPS readings","Day and night readings from the Huawei UPS: input, output, load, battery and backup time.",[{k:"load",label:"Load",u:"%"},{k:"battery",label:"Battery capacity",u:"%"},{k:"backup",label:"Backup time",u:"min"}])},
+ ups(){return upsView()},
  rectifier(){return readingView("rectifier","Huawei rectifier readings","Day and night readings from the Huawei rectifier: AC input, DC output, load and battery current.",[{k:"dcV",label:"DC output voltage",u:"V"},{k:"loadA",label:"Load current",u:"A"},{k:"acV",label:"AC input voltage",u:"V"}])},
  ciena(){const P=data.cienaPorts,c=s=>P.filter(p=>p.status===s).length;
   const plate=(slot,link)=>{let cells="";for(let n=29;n<=44;n++){const p=P.find(x=>String(x.slot)===slot&&+x.port===n);const cls=p&&p.status==="Active"?"up":p&&p.status==="Not active"?"down":"";
@@ -1257,30 +1286,32 @@ let formCtx=null;
 function closeModal(){$("backdrop").hidden=true;formCtx=null;if(dirty)render(true)}
 function openForm(col,rec,preset){const S=SCHEMAS[col],fields=S.fields,isNew=!rec;rec=rec||{};formCtx={col,id:rec.id,preset:preset||{},fields,rec};
   const val=f=>{let v=rec[f.k];if(v==null&&f.legacy&&rec[f.legacy])v=[rec[f.legacy]];if(v==null&&isNew){v=(preset&&preset[f.k]!=null)?preset[f.k]:typeof f.def==="function"?f.def():f.def}return v==null?"":v};
-  $("modal").innerHTML=`<header><h4>${isNew?"Add":"Edit"} ${esc(S.title)}</h4><button class="icon-btn" data-close aria-label="Close">✕</button></header><form id="recForm" novalidate><div class="body"><div class="form">${fields.map(f=>{const v=val(f),id="f-"+f.k,lab=`${esc(f.label)}${f.req?" *":""}`,hint=f.hint?`<span class="hint">${esc(f.hint)}</span>`:"";let inp;
+  $("modal").innerHTML=`<header><h4>${isNew?"Add":"Edit"} ${esc(S.title)}</h4><button class="icon-btn" data-close aria-label="Close">✕</button></header><form id="recForm" novalidate><div class="body"><div class="form${S.formCols===3?" f3":""}">${fields.map(f=>{const v=val(f),id="f-"+f.k,lab=`${esc(f.label)}${f.req?" *":""}`,hint=f.hint?`<span class="hint">${esc(f.hint)}</span>`:"";let inp;
+    if(f.type==="heading")return `<div class="fhead full${f.sub?" sub":""}">${esc(f.label)}</div>`;
     if(f.type==="multi"){const sel=Array.isArray(v)?v:[],mo=[...(typeof f.options==="function"?f.options():f.options)];sel.forEach(x=>{if(!mo.includes(x))mo.push(x)});return `<div class="lbl full" data-multi="${f.k}">${lab}<div class="chips">${mo.map(o=>`<button type="button" class="chip ${sel.includes(o)?"on":""}" data-chip="${esc(o)}" aria-pressed="${sel.includes(o)}">${esc(o)}</button>`).join("")}</div>${hint}</div>`}
     if(f.type==="select"){let o=typeof f.options==="function"?f.options():f.options;o=[...o];if(v!==""&&!o.includes(String(v)))o.push(String(v));if(!o.includes(""))o.unshift("");inp=`<select id="${id}" name="${f.k}">${o.map(x=>`<option ${String(x)===String(v)?"selected":""}>${esc(x)}</option>`).join("")}</select>`}
     else if(f.type==="textarea")inp=`<textarea id="${id}" name="${f.k}">${esc(v)}</textarea>`;
     else inp=`<input id="${id}" name="${f.k}" type="${f.type||"text"}" ${f.type==="number"?`step="any" inputmode="decimal"${f.min!=null?` min="${f.min}"`:""}${f.max!=null?` max="${f.max}"`:""}`:""} value="${esc(v)}">`;
-    return `<label class="${f.full||f.type==="textarea"?"full":""}" for="${id}">${lab}${inp}${hint}</label>`}).join("")}</div><p class="hint" id="formErr" style="color:var(--bad);margin:10px 0 0" hidden></p></div>
+    return `<label class="${f.full||f.type==="textarea"?"full":""}"${f.span?` style="grid-column:span ${f.span}"`:""} for="${id}">${lab}${inp}${hint}</label>`}).join("")}</div><p class="hint" id="formErr" style="color:var(--bad);margin:10px 0 0" hidden></p></div>
    <footer><button type="button" class="btn ghost" data-close>Cancel</button><button class="btn" type="submit">Save</button></footer></form>`;
   $("backdrop").hidden=false;const first=$("modal").querySelector("input,select,textarea");if(first)first.focus()}
 function confirmDel(col,id){formCtx={del:{col,id}};$("modal").innerHTML=`<header><h4>Delete this record?</h4><button class="icon-btn" data-close aria-label="Close">✕</button></header><div class="body"><p style="margin:4px 0">This removes the ${esc(SCHEMAS[col].title)} for everyone who uses this dashboard. It cannot be undone.</p></div><footer><button class="btn ghost" data-close>Keep it</button><button class="btn danger" id="doDel">Delete</button></footer>`;$("backdrop").hidden=false;$("doDel").focus()}
 async function submitForm(){const {col,id,preset,fields,rec}=formCtx;const out={...rec,...preset};delete out.id;
   for(const f of fields){if(f.type==="multi"){out[f.k]=[...$("modal").querySelectorAll(`[data-multi="${f.k}"] .chip.on`)].map(c=>c.dataset.chip);continue}
     const el=$("f-"+f.k);if(!el)continue;let v=el.value.trim();if(f.req&&v===""){const e=$("formErr");e.textContent="Fill in “"+f.label+"” to save.";e.hidden=false;el.focus();return}
-    if(f.type==="number"){v=v===""?null:num(v);if(v!=null&&((f.min!=null&&v<f.min)||(f.max!=null&&v>f.max))){const e=$("formErr");e.textContent="“"+f.label+"” must be between "+f.min+" and "+f.max+". Check the value and try again.";e.hidden=false;el.focus();return}}if(v===""||v==null)delete out[f.k];else out[f.k]=v}
+    if(f.type==="number"){v=v===""?null:num(v);if(v!=null&&((f.min!=null&&v<f.min)||(f.max!=null&&v>f.max))){const e=$("formErr");e.textContent="“"+(f.vlabel||f.label)+"” must be between "+f.min+" and "+f.max+". Check the value and try again.";e.hidden=false;el.focus();return}}if(v===""||v==null)delete out[f.k];else out[f.k]=v}
   if(col==="cienaPorts"){const dup=data.cienaPorts.find(p=>String(p.slot)===String(out.slot)&&+p.port===+out.port&&p.id!==id);if(dup){const e=$("formErr");e.textContent="Port 6-"+out.slot+"-"+out.port+" is already recorded. Edit that port instead.";e.hidden=false;return}}
   if(col==="traffic"&&out.date&&out.date!==rec.date){const dup=data.traffic.find(r=>r.date===out.date&&r.id!==id);if(dup){const e=$("formErr");e.textContent="A record for "+fd(out.date)+" already exists. Close this window and use Edit on that row instead.";e.hidden=false;return}}
   if(col==="genLoad"&&out.date&&out.date!==rec.date){const dup=data.genLoad.find(r=>r.date===out.date&&r.id!==id);if(dup){const e=$("formErr");e.textContent="A load record for "+fd(out.date)+" already exists. Close this window and use Edit on that row instead.";e.hidden=false;return}}
   if(col==="activities")delete out.assignee;
   if(col==="pfe"&&out.date&&(out.date!==rec.date||out.converter!==rec.converter)){const dup=data.pfe.find(r=>r.date===out.date&&r.converter===out.converter&&r.id!==id);if(dup){const e=$("formErr");e.textContent="A reading for "+out.converter+" on "+fd(out.date)+" already exists. Close this window and use Edit on that row instead.";e.hidden=false;return}}
   if(col==="pfe")delete out.shift;
+  if(col==="ups"&&(out.date!==rec.date||out.shift!==rec.shift||out.unit!==rec.unit)){const dup=data.ups.find(r=>r.date===out.date&&r.shift===out.shift&&r.unit===out.unit&&r.id!==id);if(dup){const e=$("formErr");e.textContent=out.unit+" already has a "+out.shift+" reading for "+fd(out.date)+". Close this window and use Edit on that row instead.";e.hidden=false;return}}
   if(col==="tasks"&&out.status==="Done"&&!out.completed)out.completed=todayIso();
   if(col==="problems"&&out.status==="Fixed"&&!out.fixedDate)out.fixedDate=todayIso();
   if(col==="painting"&&(out.areas||[]).length===AREAS.length&&!out.completedDate)out.completedDate=todayIso();
   const ok=await saveRec(col,{id,...out});if(ok){closeModal();toast("Saved")}}
-function csv(key){const c=CTX[key],S=SCHEMAS[c.col],F=S.fields,rows=rowsFor(key);const q=v=>'"'+String(v==null?"":Array.isArray(v)?v.join("; "):v).replace(/"/g,'""')+'"';
+function csv(key){const c=CTX[key],S=SCHEMAS[c.col],F=S.fields.filter(f=>f.type!=="heading"),rows=rowsFor(key);const q=v=>'"'+String(v==null?"":Array.isArray(v)?v.join("; "):v).replace(/"/g,'""')+'"';
   const txt=[F.map(f=>q(f.label)).join(","),...rows.map(r=>F.map(f=>q(r[f.k])).join(","))].join("\r\n");
   downloads.save({filename:"cls-"+key+"-"+todayIso()+".csv",data:"﻿"+txt}).then(()=>toast("Exported")).catch(e=>{if(e&&e.code!=="declined")toast("Could not export this table here.")})}
 
@@ -1294,7 +1325,7 @@ document.querySelector(".theme").addEventListener("click",e=>{const b=e.target.c
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{
   const chip=e.target.closest("#modal .chip[data-chip]");if(chip){chip.classList.toggle("on");chip.setAttribute("aria-pressed",String(chip.classList.contains("on")));return}
-  const t=e.target.closest("[data-grp],[data-goto],[data-add],[data-addc],[data-addp],[data-edit],[data-del],[data-csv],[data-close],[data-car],[data-cdot],[data-env],[data-tdept],[data-rmode],[data-rnav],[data-rfill],[data-qty],[data-area],[data-quick],[data-gs],#burger,#backBtn,#scrim,#doDel");
+  const t=e.target.closest("[data-grp],[data-goto],[data-add],[data-addc],[data-addp],[data-edit],[data-del],[data-csv],[data-close],[data-car],[data-cdot],[data-env],[data-tdept],[data-addups],[data-rmode],[data-rnav],[data-rfill],[data-qty],[data-area],[data-quick],[data-gs],#burger,#backBtn,#scrim,#doDel");
   if(!t){if(e.target===$("backdrop"))closeModal();return}
   if(t.id==="burger"){$("side").classList.add("open");$("scrim").hidden=false}
   else if(t.id==="backBtn"){goBack()}
@@ -1306,6 +1337,7 @@ document.addEventListener("click",async e=>{
   else if(t.dataset.cdot)carGo(+t.dataset.cdot);
   else if(t.dataset.env){envSel=t.dataset.env;render()}
   else if(t.dataset.tdept){taskDept=t.dataset.tdept;render()}
+  else if(t.dataset.addups)openForm("ups",null,{unit:t.dataset.addups});
   else if(t.dataset.rmode){rosterMode=t.dataset.rmode;render()}
   else if(t.dataset.rnav!==undefined){const n=+t.dataset.rnav,b=rosterAnchor?parseD(rosterAnchor):today();rosterAnchor=n===0?null:iso(rosterMode==="week"?addDays(b,7*n):new Date(b.getFullYear(),b.getMonth()+n,1));render()}
   else if(t.dataset.rfill){t.disabled=true;await rosterFill();render()}
