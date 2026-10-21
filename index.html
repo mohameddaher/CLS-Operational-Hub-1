@@ -156,6 +156,8 @@ td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
 tr:last-child td{border-bottom:0}
 tbody tr:hover td{background:color-mix(in srgb,var(--accent) 6%,var(--card))}
 td.act{white-space:nowrap;text-align:right;width:1%}
+.rtools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.rtools .seg{display:inline-flex;gap:4px}.rlabel{min-width:150px;text-align:center}.rsel{width:100%;min-width:150px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--field,var(--card));color:inherit;font:inherit;font-size:13px}
+.shtable thead tr:first-child th{text-align:center}.shtable thead tr:first-child th:first-child{text-align:left}
 tfoot td{background:var(--soft);border-top:2px solid var(--line);border-bottom:0;font-weight:600}
 .stick tfoot td:first-child{background:var(--soft)}
 /* Edit and Delete stay in view while a wide table scrolls sideways */
@@ -480,7 +482,7 @@ const SEC=Object.fromEntries(SECTIONS.map(s=>[s.id,s]));
 
 /* ---------- store ---------- */
 const COLS=["staff","tasks","circuits","traffic","alarms","pfe","env","ups","rectifier","cienaPorts","devicePorts","vlans","devices","ips","asns","prefixes","routerIps","incidents","cameras","activities",
- "problems","replacements","manholes","painting","inventory","genSpares","fuel","genLoad","filterChanges","filterOrders","uniforms","clearances","gateLog","secReports","leave","leavePlan"];
+ "problems","replacements","manholes","painting","inventory","genSpares","fuel","genLoad","roster","filterChanges","filterOrders","uniforms","clearances","gateLog","secReports","leave","leavePlan"];
 const data={};COLS.forEach(c=>data[c]=[]);
 let db=null,downloads=null;const LS="cls-ops-hub-v1";
 function loadLocal(){try{const o=JSON.parse(localStorage.getItem(LS)||"{}");COLS.forEach(c=>{if(Array.isArray(o[c]))data[c]=o[c]})}catch(e){}}
@@ -525,7 +527,7 @@ function av(name,dept,size){return `<span class="av" style="--c:${DHEX[dept]||"#
 
 /* ---------- shift schedule (from the staff schedule overview) ---------- */
 const SCHED={
- NOC:{name:"NOC team",shifts:[{k:"A",from:"08:30",to:"16:30"},{k:"B & C",from:"16:30",to:"08:30",next:1}]},
+ NOC:{name:"NOC team",shifts:[{k:"A",from:"08:30",to:"16:30"}]},
  Generator:{name:"Generator operators",shifts:[{k:"A",from:"08:00",to:"14:00"},{k:"B",from:"14:00",to:"20:00"},{k:"C",from:"20:00",to:"02:00",next:1},{k:"D",from:"02:00",to:"08:00"}]},
  Security:{name:"Security team",shifts:[{k:"A",from:"08:00",to:"14:00"},{k:"B",from:"14:00",to:"20:00"},{k:"C",from:"20:00",to:"02:00",next:1},{k:"D",from:"02:00",to:"08:00"}]}
 };
@@ -533,7 +535,15 @@ const tmin=t=>{const [h,m]=t.split(":").map(Number);return h*60+m};
 function inShift(s,m){const a=tmin(s.from),b=tmin(s.to);return a<b?m>=a&&m<b:m>=a||m<b}
 function curShift(dept){const S=SCHED[dept];if(!S)return null;const m=nowMin();return S.shifts.find(s=>inShift(s,m))||null}
 function fmt12(t){const [h,m]=t.split(":").map(Number);return ((h+11)%12+1)+":"+String(m).padStart(2,"0")+" "+(h<12?"AM":"PM")}
-function onShift(dept){const s=curShift(dept);if(!s)return [];const keys=s.k.split(/\s*&\s*/);return byDept(dept).filter(p=>p.shift&&(p.shift===s.k||keys.includes(p.shift)))}
+/* Duty roster: Generator and Security have two people on duty per 24 h. Person 1 works shifts A and C, person 2 works B and D
+   (each 6 h by day and 6 h by night). A duty day runs from 08:00 to 08:00 the next morning. NOC is one day shift for everyone. */
+const SLOT_P={A:"p1",B:"p2",C:"p1",D:"p2"},ROSTER_TEAMS=["Generator","Security"];
+const rosterRec=(t,d)=>data.roster.find(r=>r.team===t&&r.date===d);
+function dutyDate(){return iso(nowMin()<tmin("08:00")?addDays(today(),-1):today())}
+function rosterPool(t){const all=byDept(t),ops=t==="Generator"?all.filter(p=>/operator/i.test(p.role||"")):all;return (ops.length>=2?ops:all)}
+function onShift(dept){const s=curShift(dept);if(!s)return [];if(dept==="NOC")return byDept("NOC");
+  const rec=rosterRec(dept,dutyDate()),n=rec&&rec[SLOT_P[s.k]];return n?byDept(dept).filter(p=>p.name===n):[]}
+function shiftLabel(p){if(p.dept==="NOC")return "A";if(!ROSTER_TEAMS.includes(p.dept))return p.shift||"";const rec=rosterRec(p.dept,dutyDate());if(!rec)return "";return rec.p1===p.name?"A & C":rec.p2===p.name?"B & D":"Off"}
 function shiftEnds(s){return s?fmt12(s.to):""}
 const circuits=()=>[...data.circuits].sort((a,b)=>(a.order||99)-(b.order||99));
 const SHIFT=["Day","Night"];
@@ -702,7 +712,7 @@ Object.assign(SCHEMAS,{
    {k:"reportsTo",label:"Reports to",type:"select",options:()=>people().map(s=>s.name)},{k:"phone",label:"Work mobile"},{k:"shift",label:"Shift",type:"select",options:SHIFT_KEYS,hint:"From the staff schedule"},
    {k:"order",label:"Sort order",type:"number"},{k:"duties",label:"Main duties",type:"textarea",full:1}],
   cols:[{k:"name",label:"Name",f:r=>`<span style="display:flex;gap:9px;align-items:center">${av(r.name,r.dept,28)}<b>${esc(r.name)}</b></span>`},{k:"dept",label:"Department",f:r=>`<span class="tag" style="--accent:${DHEX[r.dept]||"#64748B"}">${dash(r.dept)}</span>`},{k:"role",label:"Role"},
-   {k:"reportsTo",label:"Reports to"},{k:"shift",label:"Shift",f:r=>r.shift?`<b class="mono">${esc(r.shift)}</b>`:"—"},{k:"phone",label:"Work mobile",f:r=>`<span class="mono">${dash(r.phone)}</span>`}],sort:staffSort},
+   {k:"reportsTo",label:"Reports to"},{k:"shift",label:"Shift",f:r=>{const v=shiftLabel(r);return v?`<b class="mono">${esc(v)}</b>`:"—"}},{k:"phone",label:"Work mobile",f:r=>`<span class="mono">${dash(r.phone)}</span>`}],sort:staffSort},
  tasks:{title:"task",fields:[{k:"title",label:"Task",req:1,full:1},{k:"assignee",label:"Assigned to",type:"select",options:staffNames,req:1},{k:"area",label:"Area / system",type:"select",options:["",...SYS,"Patrol","Reporting","Facility"]},
    {k:"assigned",label:"Assigned on",type:"date",def:todayIso},{k:"due",label:"Due date",type:"date"},{k:"priority",label:"Priority",type:"select",options:["Low","Normal","High","Urgent"],def:"Normal"},
    {k:"status",label:"Status",type:"select",options:["To do","In progress","Done"],def:"To do"},{k:"completed",label:"Completed on",type:"date"},{k:"rating",label:"Performance rating",type:"select",options:["","1","2","3","4","5"],hint:"1 poor, 5 excellent"},{k:"notes",label:"Notes",type:"textarea",full:1}],
@@ -839,7 +849,7 @@ function badge(id){switch(id){case"alarms":return activeAlarms().length;case"inc
   case"tasks":return data.tasks.filter(t=>t.status!=="Done").length;case"gatelog":return gateInside().length+data.gateLog.filter(g=>g.status==="Requested").length;
   case"spares":return data.genSpares.filter(s=>(+s.qty||0)<(+s.minQty||0)).length;case"fuel":{const s=fuelStats();return s.phase==="empty"&&!s.pendingOrder?1:0}}return 0}
 function summary(id){const n=(c,f)=>data[c].filter(f||(()=>1)).length;switch(id){
-  case"schedule":return "3 teams, A to D shifts";case"org":return n("staff",s=>s.dept!=="Leadership")+" staff";case"noc":return activeAlarms().length+" active alarms";
+  case"schedule":return "Weekly and monthly duty roster";case"org":return n("staff",s=>s.dept!=="Leadership")+" staff";case"noc":return activeAlarms().length+" active alarms";
   case"traffic":return n("circuits")+" links";case"alarms":return activeAlarms().length+" active";case"pfe":return n("pfe")+" readings";case"ups":return n("ups")+" readings";case"rectifier":return n("rectifier")+" readings";
   case"climate":return n("env")+" readings";case"ciena":return n("cienaPorts",p=>p.status==="Active")+" of "+n("cienaPorts")+" active";
   case"routers":case"firewall":case"planet":case"cswitch":{const t=PORTSEC[id].type;return n("devicePorts",p=>p.deviceType===t&&p.status==="Active")+" of "+n("devicePorts",p=>p.deviceType===t)+" active"}
@@ -891,6 +901,36 @@ function routeSVG(){return `<svg class="route" viewBox="0 0 700 86" role="img" a
  <path class="flow" d="M30 34 C150 4,230 60,330 40 S520 18,670 44" fill="none" stroke="#7DD3FC" stroke-width="2.5" stroke-dasharray="2 7" stroke-linecap="round"/>
  <path d="M0 74c40-10 60 8 100 0s60 8 100 0 60 8 100 0 60 8 100 0 60 8 100 0 60 8 100 0 60 8 100 0" fill="none" stroke="#3B82F6" stroke-width="1.5" opacity=".5"/>
  ${[[30,34,"Djibouti",0],[232,37,"Bosaso",0],[450,31,"Mogadishu CLS",1],[670,44,"Mombasa",0]].map(([x,y,n,m])=>`<circle cx="${x}" cy="${y}" r="${m?9:5.5}" fill="${m?"#FDE047":"#E0F2FE"}" stroke="#0B2C6B" stroke-width="2"/>${m?`<circle cx="${x}" cy="${y}" r="15" fill="none" stroke="#FDE047" stroke-width="1.5" opacity=".6"/>`:""}<text x="${Math.min(Math.max(x,36),655)}" y="${y+(m?-22:24)}" text-anchor="middle" font-size="12.5" font-weight="${m?700:500}" fill="${m?"#FDE047":"#D6E6FF"}" font-family="Outfit,system-ui,sans-serif">${n}</text>`).join("")}</svg>`}
+/* ---------- duty roster (weekly / monthly) ---------- */
+const MONF=["January","February","March","April","May","June","July","August","September","October","November","December"];
+let rosterMode="week",rosterAnchor=null;
+function rosterDays(){const base=rosterAnchor?parseD(rosterAnchor):today();
+  if(rosterMode==="week"){const st=addDays(base,-((base.getDay()+6)%7));const d=[...Array(7)].map((_,i)=>addDays(st,i));return {days:d,label:fds(d[0])+" to "+fd(d[6])}}
+  const y=base.getFullYear(),m=base.getMonth(),n=new Date(y,m+1,0).getDate();return {days:[...Array(n)].map((_,i)=>new Date(y,m,i+1)),label:MONF[m]+" "+y}}
+function rosterPair(pool,day){const n=pool.length,i=diff(new Date(2026,0,1),day),mod=(x,m)=>((x%m)+m)%m;let a=mod(2*i,n),b=mod(2*i+1,n);if(mod(Math.floor((2*i)/n),2)===1)[a,b]=[b,a];return [pool[a].name,pool[b].name]}
+async function rosterFill(){const {days}=rosterDays();let made=0,skipped=[];
+  for(const t of ROSTER_TEAMS){const pool=rosterPool(t);if(pool.length<2){skipped.push(t);continue}
+    const jobs=[];for(const d of days){const di=iso(d),ex=rosterRec(t,di);if(ex&&(ex.p1||ex.p2))continue;const [p1,p2]=rosterPair(pool,d);jobs.push(saveRec("roster",{id:"ro-"+t+"-"+di,team:t,date:di,p1,p2}));made++}
+    await Promise.all(jobs)}
+  toast(skipped.length?"Add at least two "+skipped.join(" and ")+" staff first":made?"Rotation filled for "+made+" team-day"+(made===1?"":"s"):"Every day in this period is already filled")}
+async function rosterSet(t,di,key,val){const ex=rosterRec(t,di)||{},rec={...ex,id:"ro-"+t+"-"+di,team:t,date:di};if(val)rec[key]=val;else delete rec[key];
+  if(!rec.p1&&!rec.p2){if(ex.id)await delRec("roster",ex.id);return}
+  if(rec.p1&&rec.p1===rec.p2){toast("Pick two different people for the same day.");render();return}
+  await saveRec("roster",rec)}
+function rosterView(){const {days,label}=rosterDays(),ti=todayIso(),dd=dutyDate();
+  const opt=(t,cur)=>{const names=rosterPool(t).map(p=>p.name);if(cur&&!names.includes(cur))names.push(cur);return `<option value="">Not assigned</option>`+names.map(n=>`<option value="${esc(n)}"${n===cur?" selected":""}>${esc(n)}</option>`).join("")};
+  const sel=(t,di,key,cur)=>`<select class="rsel" data-rsel="${t}|${di}|${key}" aria-label="${t} ${key==="p1"?"A and C":"B and D"} on ${di}">${opt(t,cur)}</select>`;
+  const rows=days.map(d=>{const di=iso(d);return `<tr class="${di===dd?"now":""}"><td><b>${fds(d)}</b> <span class="hint">${WD[d.getDay()]}</span>${di===dd?" "+pill("Duty day now","ok"):""}</td>${ROSTER_TEAMS.map(t=>{const rec=rosterRec(t,di)||{};return `<td>${sel(t,di,"p1",rec.p1)}</td><td>${sel(t,di,"p2",rec.p2)}</td>`}).join("")}</tr>`}).join("");
+  const sums=ROSTER_TEAMS.map(t=>{const c={};days.forEach(d=>{const rec=rosterRec(t,iso(d));if(rec)[rec.p1,rec.p2].filter(Boolean).forEach(n=>c[n]=(c[n]||0)+1)});
+    const list=Object.entries(c).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+    return `<div class="card"><h3 style="margin-top:0;color:${DHEX[t]}">${esc(SCHED[t].name)} <span class="hint">· duty days in this period</span></h3>${list.length?`<div class="kvl">${list.map(([n,k])=>`<div class="kv"><span>${esc(n)}</span><b>${k} day${k===1?"":"s"} <span class="hint">· ${k*12} h</span></b></div>`).join("")}</div>`:`<div class="empty">Nobody scheduled yet. Use Auto-fill rotation or pick names above.</div>`}</div>`}).join("");
+  return `<h3 id="roster">Duty roster <span class="hint">· who works each day</span></h3>
+  <div class="rtools"><div class="seg" role="group" aria-label="Roster period"><button class="btn sm ${rosterMode==="week"?"":"ghost"}" data-rmode="week" aria-pressed="${rosterMode==="week"}">Weekly</button><button class="btn sm ${rosterMode==="month"?"":"ghost"}" data-rmode="month" aria-pressed="${rosterMode==="month"}">Monthly</button></div>
+   <button class="btn ghost sm" data-rnav="-1" aria-label="Previous">‹</button><b class="rlabel">${esc(label)}</b><button class="btn ghost sm" data-rnav="1" aria-label="Next">›</button><button class="btn ghost sm" data-rnav="0">Today</button>
+   <button class="btn" data-rfill="1">Auto-fill rotation</button></div>
+  <p class="sub" style="margin:6px 0 10px">Each duty day runs 08:00 to 08:00 the next morning. <b>A &amp; C</b> person works 08:00 to 14:00 and 20:00 to 02:00. <b>B &amp; D</b> person works 14:00 to 20:00 and 02:00 to 08:00. Auto-fill rotates the pairs and swaps day and night each round; it only fills empty days, so your manual changes stay.</p>
+  <div class="tablewrap"><table class="shtable" style="min-width:760px"><thead><tr><th rowspan="2">Date</th><th colspan="2" style="color:${DHEX.Generator}">Generator operators</th><th colspan="2" style="color:${DHEX.Security}">Security team</th></tr><tr><th>A &amp; C</th><th>B &amp; D</th><th>A &amp; C</th><th>B &amp; D</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <div class="grid g2" style="margin-top:14px">${sums}</div>`}
 const VIEWS={
  traffic(){const recs=[...data.traffic].filter(r=>r.date).sort((a,b)=>a.date.localeCompare(b.date)).slice(-31),lt=recs[recs.length-1],links=linkRows(lt),cs=circuits();
   const regs=[...new Set(cs.map(c=>c.region).filter(Boolean))].slice(0,6),pal=["#0891B2","#F97316","#7C3AED","#16A34A","#DB2777","#CA8A04"];
@@ -994,7 +1034,7 @@ function radarSVG(n){const pts=[[70,60],[180,90],[150,190],[95,170],[205,150]].s
    <circle cx="130" cy="130" r="6" fill="#fff"/><text x="130" y="152" text-anchor="middle" font-size="11" fill="#CCFBF1" font-family="IBM Plex Mono,monospace">DARE1</text></svg>`}
 function dutyBox(dept){const s=curShift(dept),on=onShift(dept);
   return `<div class="duty"><div class="lbl">${esc(SCHED[dept].name)} · on shift now</div><div class="sh">Shift ${s?esc(s.k):"—"} <span style="font-size:14px;font-weight:500;opacity:.75;font-family:var(--mono)">${s?fmt12(s.from)+" – "+fmt12(s.to):""}</span></div>
-   <ul>${on.length?on.map(p=>`<li>${av(p.name,dept)}<span><b style="display:block;font-weight:600;line-height:1.2">${esc(p.name)}</b><small style="opacity:.7">${esc(p.role||"")}</small></span></li>`).join(""):`<li style="opacity:.75;font-size:13px">No one assigned to shift ${s?esc(s.k):""} yet. Set each person's shift in Reporting line &amp; staff.</li>`}</ul></div>`}
+   <ul>${on.length?on.map(p=>`<li>${av(p.name,dept)}<span><b style="display:block;font-weight:600;line-height:1.2">${esc(p.name)}</b><small style="opacity:.7">${esc(p.role||"")}</small></span></li>`).join(""):`<li style="opacity:.75;font-size:13px">No one assigned to shift ${s?esc(s.k):""} yet. Set the duty roster in Shift schedule.</li>`}</ul></div>`}
 function slideCLS(al){const crewN=staffNames().length,open=data.tasks.filter(t=>t.status!=="Done").length,h=nowParts().h;
   return `<section class="hero h-cls"><span class="eyebrow"><span class="live"><i></i>Live</span>Mogadishu Cable Landing Station · DARE1 · <span class="clk">${hhmm()} EAT</span></span>
    <h2>Good ${h<12?"morning":h<17?"afternoon":"evening"}, CLS team</h2><p>NOC, generator and security operations for the Mogadishu CLS datacenter in one place. Every team reports to the CLS Manager, Mohamed Dahir Ali.</p>
@@ -1047,20 +1087,22 @@ Object.assign(VIEWS,{
    <div class="card"><h3>Who is on shift</h3>${["NOC","Generator","Security"].map(d=>{const s=curShift(d),on=onShift(d);return `<div class="kv"><span><b>${esc(SCHED[d].name)}</b><div class="hint">Shift ${s?esc(s.k)+", "+fmt12(s.from)+" to "+fmt12(s.to):"—"}</div></span><span style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end">${on.length?on.map(p=>`<span title="${esc(p.name)}">${av(p.name,d,28)}</span>`).join(""):`<span class="hint">Not assigned</span>`}</span></div>`}).join("")}
     <div class="kv"><span><b>CLS Manager</b><div class="hint">Mohamed Dahir Ali</div></span><button class="btn ghost sm" data-goto="org">Reporting line</button></div></div></div>
   ${groups.map(g=>`<h3>${g==="Shared"?"Shared by all teams":g}</h3><div class="tiles">${SECTIONS.filter(s=>s.group===g).map(s=>`<button class="tile" style="--c:${s.color}" data-goto="${s.id}"><span class="ic">${ic(s.icon,17)}</span><span><b>${esc(s.label)}</b><small>${esc(summary(s.id))}</small></span></button>`).join("")}</div>`).join("")}`},
- schedule(){const m=nowMin();
+ schedule(){const m=nowMin(),dd=dutyDate();
   const lane=(dept)=>SCHED[dept].shifts.map(s=>{let a=tmin(s.from),b=tmin(s.to);const segs=a<b?[[a,b]]:[[a,1440],[0,b]];const col=DHEX[dept];
     return segs.map(([x,y])=>`<div class="blk ${inShift(s,m)?"now":""}" style="left:${x/1440*100}%;width:${(y-x)/1440*100}%;background:color-mix(in srgb,${col} ${inShift(s,m)?100:60}%,#94A3B8)">${esc(s.k)}</div>`).join("")}).join("")+`<div class="nowline" style="left:${m/1440*100}%"></div>`;
-  const tbl=dept=>`<div class="tablewrap"><table class="shtable" style="min-width:420px"><thead><tr><th>Shift</th><th>Start time</th><th>End time</th><th>Staff</th></tr></thead><tbody>${SCHED[dept].shifts.map(s=>{const keys=s.k.split(/\s*&\s*/),ppl=byDept(dept).filter(p=>p.shift===s.k||keys.includes(p.shift));
-    return `<tr class="${inShift(s,m)?"now":""}"><td><b class="mono">${esc(s.k)}</b>${inShift(s,m)?" "+pill("On now","ok"):""}</td><td>${fmt12(s.from)}</td><td>${fmt12(s.to)}${s.next?" (next day)":""}</td><td>${ppl.map(p=>esc(p.name)).join(", ")||`<span class="hint">Not assigned</span>`}</td></tr>`}).join("")}</tbody></table></div>`;
-  return head("Staff schedule overview","Shift times for the NOC team, generator operators and the security team. The red line marks the time now in Mogadishu. Assign each person to a shift from Reporting line & staff.")+
+  const who=(dept,s)=>{if(dept==="NOC")return byDept("NOC").map(p=>esc(p.name)).join(", ")||`<span class="hint">Not assigned</span>`;const rec=rosterRec(dept,dd),n=rec&&rec[SLOT_P[s.k]];return n?esc(n):`<span class="hint">Not assigned</span>`};
+  const tbl=dept=>`<div class="tablewrap"><table class="shtable" style="min-width:0"><thead><tr><th>Shift</th><th>Start</th><th>End</th><th>Staff</th></tr></thead><tbody>${SCHED[dept].shifts.map(s=>{
+    return `<tr class="${inShift(s,m)?"now":""}"><td><b class="mono">${esc(s.k)}</b>${inShift(s,m)?" "+pill("On now","ok"):""}</td><td>${fmt12(s.from)}</td><td>${fmt12(s.to)}${s.next?" (next day)":""}</td><td>${who(dept,s)}</td></tr>`}).join("")}</tbody></table></div>`;
+  return head("Staff schedule overview","The NOC team works one day shift (A, 8 hours). Generator operators and security have two people on duty every 24 hours, each working 6 hours by day and 6 by night. The red line marks the time now in Mogadishu.")+
   `<div class="card"><h3>24-hour view <span class="hint">· ${hhmm()} EAT</span></h3><div class="chart"><div class="sched">${["NOC","Generator","Security"].map(d=>`<b style="font-size:13px">${esc(SCHED[d].name)}</b><div class="lane">${lane(d)}</div>`).join("")}<span></span><div class="ticks">${["00","03","06","09","12","15","18","21","24"].map(t=>`<span>${t}</span>`).join("")}</div></div></div></div>
-  <div class="grid g3" style="margin-top:14px">${["NOC","Generator","Security"].map(d=>`<div><h3 style="margin-top:0;color:${DHEX[d]}">${esc(SCHED[d].name)}</h3>${tbl(d)}</div>`).join("")}</div>`},
+  <div class="grid g3" style="margin-top:14px">${["NOC","Generator","Security"].map(d=>`<div><h3 style="margin-top:0;color:${DHEX[d]}">${esc(SCHED[d].name)}${d==="NOC"?"":` <span class="hint">· duty day ${fds(dd)}</span>`}</h3>${tbl(d)}</div>`).join("")}</div>
+  ${rosterView()}`},
  org(){const P=people(),find=n=>P.find(p=>p.name===n),lead=P.filter(p=>p.dept==="Leadership");
   const chain=[];let top=lead.find(p=>!p.reportsTo||!find(p.reportsTo))||lead[0];const seen=new Set();while(top&&!seen.has(top.name)){seen.add(top.name);chain.push(top);top=P.find(p=>p.reportsTo===top.name&&(p.dept==="Leadership"||p.dept==="Management"))}
   const mgr=chain[chain.length-1];const teams=["NOC","Generator","Security","Support"];
   const netHeads=byDept(NET).filter(p=>chain.some(c=>c.name===p.reportsTo)&&p!==mgr),netTeam=byDept(NET).filter(p=>!netHeads.includes(p));
   const node=(p,isLead)=>`<div class="on ${isLead?"lead":""}" style="--c:${DHEX[p.dept]||"#334155"}"><b>${esc(p.name)}</b><span>${esc(p.role||"")}</span></div>`;
-  const person=(p,t,boss)=>`<div class="person">${av(p.name,t,30)}<span><b>${esc(p.name)}</b><small>${esc(p.role||"")}${p.shift?" · shift "+esc(p.shift):""}${p.reportsTo&&boss&&p.reportsTo!==boss.name?" · reports to "+esc(p.reportsTo):""}</small></span></div>`;
+  const person=(p,t,boss)=>`<div class="person">${av(p.name,t,30)}<span><b>${esc(p.name)}</b><small>${esc(p.role||"")}${shiftLabel(p)?" · shift "+esc(shiftLabel(p)):""}${p.reportsTo&&boss&&p.reportsTo!==boss.name?" · reports to "+esc(p.reportsTo):""}</small></span></div>`;
   const clsCols=`<div class="ocols">${teams.map(t=>{const ppl=byDept(t);return ppl.length?`<div class="ocol" style="--c:${DHEX[t]}"><h4><span>${t==="Support"?"Support staff":t+" team"}</span><span>${ppl.length}</span></h4>${ppl.map(p=>person(p,t,mgr)).join("")}</div>`:""}).join("")}</div>`;
   const netBranch=netHeads.length?`<div class="obranch" style="--c:${DHEX[NET]}"><div class="blbl">Network &amp; Internet upstream</div>${netHeads.map(p=>node(p,1)).join("")}<div class="ol"></div>
    ${netTeam.length?`<div class="ocol" style="--c:${DHEX[NET]};width:100%"><h4><span>Network team</span><span>${netTeam.length}</span></h4>${netTeam.map(p=>person(p,NET,netHeads[0])).join("")}</div>`:`<div class="hint" style="text-align:center">Add staff in the Network &amp; Internet department to show the team here.</div>`}</div>`:"";
@@ -1107,7 +1149,7 @@ Object.assign(VIEWS,{
    <div class="card"><h3>Gate log today <span class="hint">· ${fd(td)}</span></h3>${gt.length?gt.map(g=>`<div class="kv"><span><b>${esc(g.name)}</b><div class="hint">${esc(g.gate)} · ${esc(g.tin||"—")} / ${esc(g.tout||"—")}</div></span>${sp(g.status)}</div>`).join(""):`<div class="empty">No gate entries recorded today.</div>`}<div style="margin-top:10px"><button class="btn sm" data-addc="gateLog">+ Log gate entry</button></div></div></div>
   <h3>Security team</h3><div class="grid g4">${byDept("Security").map(p=>{const tk=data.tasks.filter(t=>t.assignee===p.name&&t.status!=="Done").length,c=data.clearances.find(x=>x.holder===p.name);
    return `<div class="card stat" style="--c:var(--sec)"><div style="display:flex;gap:10px;align-items:center">${av(p.name,"Security",36)}<span style="min-width:0"><b style="display:block;line-height:1.2">${esc(p.name)}</b><span class="k">${esc(p.role||"")}</span></span></div>
-    <div class="kv" style="margin-top:8px"><span class="hint">Shift</span><b class="mono">${dash(p.shift)}</b></div><div class="kv"><span class="hint">Open tasks</span><b>${tk}</b></div><div class="kv"><span class="hint">Airport pass</span>${c?clrPill(c):pill("Not recorded","neutral")}</div></div>`}).join("")}</div>
+    <div class="kv" style="margin-top:8px"><span class="hint">Shift</span><b class="mono">${dash(shiftLabel(p))}</b></div><div class="kv"><span class="hint">Open tasks</span><b>${tk}</b></div><div class="kv"><span class="hint">Airport pass</span>${c?clrPill(c):pill("Not recorded","neutral")}</div></div>`}).join("")}</div>
   <h3>Shift reports</h3>${table("secReports","secReports")}`},
  gatelog(){const G=data.gateLog,by=s=>G.filter(g=>g.status===s).length;
   return head("Visitor gate log","Every visitor, contractor and vehicle cleared through the airport gates and the DARE1 site gate. Approve, check in and check out from the Status column.")+
@@ -1230,7 +1272,7 @@ document.querySelector(".theme").addEventListener("click",e=>{const b=e.target.c
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{
   const chip=e.target.closest("#modal .chip[data-chip]");if(chip){chip.classList.toggle("on");chip.setAttribute("aria-pressed",String(chip.classList.contains("on")));return}
-  const t=e.target.closest("[data-grp],[data-goto],[data-add],[data-addc],[data-addp],[data-edit],[data-del],[data-csv],[data-close],[data-car],[data-cdot],[data-env],[data-tdept],[data-qty],[data-area],[data-quick],[data-gs],#burger,#backBtn,#scrim,#doDel");
+  const t=e.target.closest("[data-grp],[data-goto],[data-add],[data-addc],[data-addp],[data-edit],[data-del],[data-csv],[data-close],[data-car],[data-cdot],[data-env],[data-tdept],[data-rmode],[data-rnav],[data-rfill],[data-qty],[data-area],[data-quick],[data-gs],#burger,#backBtn,#scrim,#doDel");
   if(!t){if(e.target===$("backdrop"))closeModal();return}
   if(t.id==="burger"){$("side").classList.add("open");$("scrim").hidden=false}
   else if(t.id==="backBtn"){goBack()}
@@ -1242,6 +1284,9 @@ document.addEventListener("click",async e=>{
   else if(t.dataset.cdot)carGo(+t.dataset.cdot);
   else if(t.dataset.env){envSel=t.dataset.env;render()}
   else if(t.dataset.tdept){taskDept=t.dataset.tdept;render()}
+  else if(t.dataset.rmode){rosterMode=t.dataset.rmode;render()}
+  else if(t.dataset.rnav!==undefined){const n=+t.dataset.rnav,b=rosterAnchor?parseD(rosterAnchor):today();rosterAnchor=n===0?null:iso(rosterMode==="week"?addDays(b,7*n):new Date(b.getFullYear(),b.getMonth()+n,1));render()}
+  else if(t.dataset.rfill){t.disabled=true;await rosterFill();render()}
   else if(t.dataset.goto){if(t.dataset.scroll&&active===t.dataset.goto){const el=$(t.dataset.scroll);if(el)el.scrollIntoView({behavior:reduced()?"auto":"smooth"})}else go(t.dataset.goto)}
   else if(t.dataset.add){const c=CTX[t.dataset.add];openForm(c.col,null,c.preset)}
   else if(t.dataset.addc)openForm(t.dataset.addc,null,{});
@@ -1255,6 +1300,7 @@ document.addEventListener("click",async e=>{
   else if(t.dataset.quick){const st=fuelStats();if(!st.cur)return;t.disabled=true;if(await saveRec("fuel",{...st.cur,[t.dataset.quick]:todayIso()}))toast("Recorded for today")}
   else if(t.dataset.gs){const [id,s]=t.dataset.gs.split(":"),r=data.gateLog.find(x=>x.id===id);if(!r)return;const n={...r,status:s};if(s==="Inside"&&!n.tin)n.tin=hhmm();if(s==="Exited"&&!n.tout)n.tout=hhmm();t.disabled=true;if(await saveRec("gateLog",n))toast(s==="Approved"?"Clearance approved":s==="Inside"?"Checked in at "+n.tin:"Checked out at "+n.tout)}
 });
+document.addEventListener("change",e=>{const v=e.target.dataset&&e.target.dataset.rsel;if(!v)return;const [t,di,k]=v.split("|");rosterSet(t,di,k,e.target.value)});
 document.addEventListener("submit",e=>{if(e.target.id==="recForm"){e.preventDefault();submitForm()}});
 document.addEventListener("input",e=>{const k=e.target.dataset&&e.target.dataset.search;if(!k)return;searchQ[k]=e.target.value;$("tbl-"+k).innerHTML=tbody(k);const c=$("cnt-"+k);if(c)c.textContent=rowsFor(k).length+" records"});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(!$("backdrop").hidden)closeModal();else closeSide()}
