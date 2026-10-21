@@ -674,9 +674,10 @@ function head(t,sub,btn){return `<div class="head"><div><h2 class="title acc">${
 function stat(k,v,d,c,go){return `<div class="card stat" ${c?`style="--c:${c}"`:""} ${go?`data-goto="${go}" tabindex="0" role="button"`:""}><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d||"&nbsp;"}</div></div>`}
 
 /* ---------- charts ---------- */
-function lineChart(labels,series,o){o=o||{};const W=680,H=250,pl=40,pr=14,pt=14,pb=30;
+function lineChart(labels,series,o){o=o||{};const W=680,H=250,pr=14,pt=14,pb=30;let pl=40;
   const vals=series.flatMap(s=>s.values).filter(v=>v!=null);if(!vals.length||!labels.length)return `<div class="empty">Readings will be charted here once recorded.</div>`;
   let mn=o.min!=null?o.min:Math.min(...vals),mx=o.max!=null?o.max:Math.max(...vals);if(o.min==null){const pad=Math.max(1,(mx-mn)*.2);mn=Math.floor(mn-pad);mx=Math.ceil(mx+pad)}if(mx===mn)mx=mn+1;
+  pl=Math.max(40,6.4*Math.max(...[0,1,2,3,4].map(i=>(String(Math.round((mn+(mx-mn)*i/4)*10)/10)+(o.unit||"")).length))+12);
   const x=i=>pl+(labels.length>1?i*(W-pl-pr)/(labels.length-1):(W-pl-pr)/2),y=v=>pt+(H-pt-pb)*(1-(v-mn)/(mx-mn));
   let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(o.title||"Chart")}">`;
   for(let i=0;i<=4;i++){const v=mn+(mx-mn)*i/4,yy=y(v);s+=`<line class="gl" x1="${pl}" x2="${W-pr}" y1="${yy}" y2="${yy}"/><text class="ax" x="${pl-6}" y="${yy+4}" text-anchor="end">${Math.round(v*10)/10}${o.unit||""}</text>`}
@@ -891,10 +892,12 @@ const CONVS=["Converter 1","Converter 2"];
 function pfeView(){const rows=[...data.pfe].sort((a,b)=>String(a.date).localeCompare(String(b.date))),dates=[...new Set(rows.map(r=>r.date))].slice(-31);
   const lastOf=c=>rows.filter(r=>r.converter===c&&(num(r.voltage)!=null||num(r.current)!=null)).pop();
   const card=(c,i)=>{const l=lastOf(c);return stat(c,l&&num(l.voltage)!=null?num(l.voltage)+" V":"—",l?(num(l.current)!=null?num(l.current)+" mA · ":"")+fd(l.date):"No reading yet",i?"var(--info)":"var(--warn)")};
-  const series=CONVS.map((c,i)=>({name:c,color:["#F59E0B","#0891B2"][i],values:dates.map(d=>{const x=rows.filter(q=>q.date===d&&q.converter===c&&num(q.voltage)!=null).pop();return x?num(x.voltage):null})}));
+  const ser=(c,m,col)=>[{name:m.n,color:col,values:dates.map(d=>{const x=rows.filter(q=>q.date===d&&q.converter===c&&num(q[m.k])!=null).pop();return x?num(x[m.k]):null})}];
+  const M=[{k:"voltage",n:"Output voltage",u:"V"},{k:"current",n:"Line current",u:"mA"}];
+  const panel=(c,i)=>`<div class="card"><h3 style="margin-top:0;color:${i?"var(--info)":"var(--warn)"}">${c}</h3>${M.map((m,j)=>`<div style="margin-top:${j?"14px":"6px"}"><b style="font-size:13px">${m.n} <span class="hint">· ${m.u}</span></b>${lineChart(dates.map(fds),ser(c,m,i?"#0891B2":"#F59E0B"),{unit:" "+m.u,title:c+" "+m.n.toLowerCase()})}</div>`).join("")}</div>`;
   return head("Power Feeding Equipment","One daily reading for each of the two PFE converters that power the DARE1 subsea cable repeaters from the Mogadishu landing station.")+
   `<div class="grid g3">${CONVS.map(card).join("")}${stat("Readings recorded",rows.length,rows.filter(r=>r.status&&r.status!=="Normal").length+" with warning or alarm")}</div>
-  <div class="card" style="margin-top:14px"><h3>Output voltage by converter</h3>${lineChart(dates.map(fds),series,{unit:" V",title:"Output voltage by converter"})}</div>
+  <div class="grid g2" style="margin-top:14px">${CONVS.map(panel).join("")}</div>
   <h3>Reading record</h3>${table("pfe","pfe")}`}
 function readingView(col,title,sub,keys,daily){const rows=[...data[col]].sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.shift).localeCompare(String(b.shift)));const last=rows[rows.length-1];
   const dates=[...new Set(rows.map(r=>r.date))].slice(-31),k0=keys[0];const pick=sh=>dates.map(d=>{const r=rows.find(x=>x.date===d&&x.shift===sh);return r?num(r[k0.k]):null});
