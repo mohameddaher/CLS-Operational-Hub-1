@@ -276,6 +276,7 @@ tfoot td{background:var(--soft);border-top:2px solid var(--line);border-bottom:0
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 svg .ax{fill:var(--muted);font-size:11px;font-family:var(--body)}
 svg .gl{stroke:var(--line)}
+svg.lbars .lbar path{transition:filter .15s}svg.lbars .lbar:hover path{filter:brightness(1.12) drop-shadow(0 3px 5px rgba(20,32,54,.25))}
 .chart{width:100%;overflow-x:auto}
 .chart svg{display:block;width:100%;min-width:480px;height:auto}
 .chart.fit svg{min-width:0}
@@ -728,17 +729,19 @@ function barChart(labels,series,o){o=o||{};const W=o.W||420,H=240,pl=36,pr=8,pt=
   return `<div class="chart fit">${s}</svg></div>`}
 /* one vertical bar per link, value above the bar, name and port underneath (like the NOC Excel sheet) */
 function linkBars(items,o){o=o||{};const n=items.length;if(!n)return `<div class="empty">No throughput record yet.</div>`;
-  const cw=66,pl=42,pr=8,pt=24,pb=84,H=340,W=pl+pr+n*cw,bw=38,y=v=>pt+(H-pt-pb)*(1-v/100);
+  const cw=70,pl=58,pr=14,pt=30,pb=88,H=360,W=pl+pr+n*cw,bw=40,y=v=>pt+(H-pt-pb)*(1-v/100);
   const wrap=t=>{const out=[];String(t).split(/(?<=-)|\s+/).filter(Boolean).forEach(w=>{const l=out[out.length-1];if(l&&(l+" "+w).length<=11&&!l.endsWith("-"))out[out.length-1]=l+" "+w;else if(l&&l.endsWith("-")&&(l+w).length<=11)out[out.length-1]=l+w;else out.push(w)});return out.slice(0,3)};
-  let s=`<svg viewBox="0 0 ${W} ${H}" style="min-width:${W}px" role="img" aria-label="${esc(o.title||"Throughput by link")}">`;
-  for(let v=0;v<=100;v+=20)s+=`<line class="gl" x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${pl-6}" y="${y(v)+4}" text-anchor="end">${v}%</text>`;
-  s+=`<line x1="${pl}" x2="${W-pr}" y1="${y(90)}" y2="${y(90)}" style="stroke:var(--bad)" stroke-dasharray="5 4" opacity=".55"/>`;
-  items.forEach((x,i)=>{const cx=pl+cw*i+cw/2,h=Math.max(0,y(0)-y(x.p));
-    s+=`<rect x="${cx-bw/2}" y="${y(x.p)}" width="${bw}" height="${h}" rx="2" style="fill:${tcolor(x.p)}"><title>${esc(x.c.name+" "+(x.c.port||"")+": "+x.p+"%"+(o.peak?" (highest night "+x.pk+"%)":""))}</title></rect>`;
-    s+=`<text x="${cx}" y="${y(o.peak&&x.pk>x.p?x.pk:x.p)-7}" text-anchor="middle" style="fill:var(--ink);font-size:12px;font-weight:700;font-family:var(--body)">${x.p}%</text>`;
-    if(o.peak&&x.pk>x.p)s+=`<line x1="${cx-bw/2-3}" x2="${cx+bw/2+3}" y1="${y(x.pk)}" y2="${y(x.pk)}" style="stroke:var(--ink)" stroke-width="2.4"><title>Highest night ${x.pk}%</title></line>`;
-    const L=wrap(x.c.name);L.forEach((t,j)=>s+=`<text class="ax" x="${cx}" y="${H-pb+16+j*12}" text-anchor="middle">${esc(t)}</text>`);
-    if(x.c.port)s+=`<text class="ax" x="${cx}" y="${H-pb+16+L.length*12}" text-anchor="middle" style="font-size:10px">(${esc(x.c.port)})</text>`});
+  const tones=[["#0EA5E9","lbB"],["#16A34A","lbG"],["#DC2626","lbR"]];
+  let s=`<svg class="lbars" viewBox="0 0 ${W} ${H}" style="min-width:${W}px" role="img" aria-label="${esc(o.title||"Throughput by link")}"><defs>${tones.map(t=>`<linearGradient id="${t[1]}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${t[0]}"/><stop offset="1" stop-color="${t[0]}" stop-opacity=".72"/></linearGradient>`).join("")}</defs>`;
+  for(let v=0;v<=100;v+=20)s+=`<line x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}" style="stroke:var(--line)" ${v?`stroke-dasharray="3 5"`:`stroke-width="1.6"`}/><text class="ax" x="${pl-10}" y="${y(v)+4}" text-anchor="end">${v}%</text>`;
+  s+=`<text class="ax" transform="translate(13 ${(pt+H-pb)/2}) rotate(-90)" text-anchor="middle" style="font-size:11px">Throughput, % of port capacity</text>`;
+  s+=`<line x1="${pl}" x2="${W-pr}" y1="${y(90)}" y2="${y(90)}" style="stroke:var(--bad)" stroke-width="1.4" stroke-dasharray="6 4" opacity=".7"/><text x="${W-pr}" y="${y(90)-5}" text-anchor="end" style="fill:var(--bad);font-size:10.5px;font-weight:600;font-family:var(--body)">High 90%</text>`;
+  items.forEach((x,i)=>{const cx=pl+cw*i+cw/2,x0=cx-bw/2,top=y(x.p),h=Math.max(0,y(0)-top),r=Math.min(7,h/2),g=x.p<=50?tones[0]:x.p<=89?tones[1]:tones[2];
+    s+=`<g class="lbar"><path d="M${x0},${top+h}V${top+r}Q${x0},${top} ${x0+r},${top}H${x0+bw-r}Q${x0+bw},${top} ${x0+bw},${top+r}V${top+h}Z" style="fill:url(#${g[1]})"><title>${esc(x.c.name+" "+(x.c.port||"")+": "+x.p+"%"+(o.peak?" (highest night "+x.pk+"%)":""))}</title></path>`;
+    if(o.peak&&x.pk>x.p)s+=`<line x1="${x0-4}" x2="${x0+bw+4}" y1="${y(x.pk)}" y2="${y(x.pk)}" style="stroke:var(--ink)" stroke-width="2.4" stroke-linecap="round"><title>Highest night ${x.pk}%</title></line>`;
+    s+=`<text x="${cx}" y="${y(o.peak&&x.pk>x.p?x.pk:x.p)-8}" text-anchor="middle" style="fill:var(--ink);font-size:12.5px;font-weight:700;font-family:var(--body)">${x.p}%</text></g>`;
+    const L=wrap(x.c.name);L.forEach((t,j)=>s+=`<text class="ax" x="${cx}" y="${H-pb+20+j*13}" text-anchor="middle" style="fill:var(--ink)">${esc(t)}</text>`);
+    if(x.c.port)s+=`<text class="ax" x="${cx}" y="${H-pb+20+L.length*13}" text-anchor="middle" style="font-size:10px">(${esc(x.c.port)})</text>`});
   return `<div class="chart">${s}</svg></div>`}
 let glMode="week",glAnchor=null;
 function glRange(){const recs=data.genLoad.filter(r=>r.date).map(r=>r.date).sort(),base=parseD(glAnchor||recs[recs.length-1]||todayIso());
@@ -1022,13 +1025,8 @@ const VIEWS={
  traffic(){const {days,label}=trRange(),mode=trMode,from=iso(days[0]),to=iso(days[days.length-1]),by=trByDate(),cs=circuits(),pr=days.map(d=>by[iso(d)]).filter(Boolean),
   PN={day:"daily",week:"weekly",month:"monthly"}[mode],r1=v=>Math.round(v*10)/10;
   const links=cs.map(c=>{const v=pr.map(r=>num(r["c_"+c.id])).filter(x=>x!=null);return {c,p:v.length?r1(avg(v)):null,pk:v.length?Math.max(...v):null}}).filter(x=>x.p!=null);
-  const regs=[...new Set(cs.map(c=>c.region).filter(Boolean))].slice(0,6),pal=["#0891B2","#F97316","#7C3AED","#16A34A","#DB2777","#CA8A04"];
-  const regAvg=(rec,rg)=>{const v=avg(cs.filter(c=>c.region===rg).map(c=>num(rec["c_"+c.id])));return v==null?null:Math.round(v)};
   const pk=links.slice().sort((a,b)=>b.pk-a.pk)[0],a=avg(links.map(x=>x.p)),gb=links.reduce((s,x)=>s+(num(x.c.capacity)||0)*x.p/100,0);
   const pkRec=pk&&pr.find(r=>num(r["c_"+pk.c.id])===pk.pk),hi=links.filter(x=>x.pk>=90).length;
-  let trend;
-  if(mode==="day"){const rec=by[from];trend=`<div class="card"><h3>Average by region on ${esc(label)}</h3>${rec?barChart(regs,[{name:"Average of links",color:"#0891B2",values:regs.map(rg=>regAvg(rec,rg))},{name:"Busiest link",color:"#DC2626",values:regs.map(rg=>{const v=cs.filter(c=>c.region===rg).map(c=>num(rec["c_"+c.id])).filter(x=>x!=null);return v.length?Math.max(...v):null})}],{W:420,bw:20,title:"Throughput by region on "+label})+`<div class="legend"><span><i style="background:#0891B2"></i>Average of links</span><span><i style="background:#DC2626"></i>Busiest link</span></div>`:`<div class="empty">No throughput record for this day. Use “Add throughput record” below.</div>`}</div>`}
-  else trend=`<div class="card"><h3>Traffic usage, average by region <span class="hint">· ${esc(label)}</span></h3>${pr.length?lineChart(pr.map(r=>fds(r.date)),regs.map((rg,i)=>({name:rg,color:pal[i],values:pr.map(r=>regAvg(r,rg))})),{unit:"%",min:0,max:100,limit:90,limitLabel:"High at",title:"Traffic usage by region"}):`<div class="empty">No throughput record in this ${mode}.</div>`}</div>`;
   const bt=(m,t)=>`<button class="btn sm ${trMode===m?"":"ghost"}" data-trmode="${m}" aria-pressed="${trMode===m}">${t}</button>`;
   const foot=rows=>{if(mode==="day"||!rows.length)return "";const row=(t,fn)=>`<tr class="avgrow"><td><b>${t}</b><span class="hint" style="display:block">${rows.length} night${rows.length===1?"":"s"} recorded</span></td>${cs.map(c=>{const v=rows.map(r=>num(r["c_"+c.id])).filter(x=>x!=null);if(!v.length)return `<td>—</td>`;const x=fn(v);return `<td><span class="pill ${ttone(Math.round(x))}">${x}%</span></td>`}).join("")}<td></td></tr>`;
     return row((mode==="week"?"Weekly":"Monthly")+" average",v=>r1(avg(v)))+row("Highest night",v=>Math.max(...v))};
@@ -1037,8 +1035,7 @@ const VIEWS={
    <button class="btn ghost sm" data-trnav="-1" aria-label="Previous">‹</button><b class="rlabel">${esc(label)}</b><button class="btn ghost sm" data-trnav="1" aria-label="Next">›</button><input type="date" class="rsel" style="width:auto;min-width:0" data-trdate value="${from}" aria-label="Jump to date"><button class="btn ghost sm" data-trnav="0">Latest</button></div>
   <div class="grid g4">${stat("Total links monitored",cs.length,pr.length?pr.length+" night"+(pr.length===1?"":"s")+" recorded, latest "+fds(pr[pr.length-1].date):"No record in this "+mode)}${stat("High throughput links",hi,mode==="day"?"90% or more":"90% or more on any night","var(--bad)")}${stat("Peak link",pk?pk.pk+"%":"—",pk?esc(pk.c.name+" "+(pk.c.port||""))+(pkRec?" · "+fds(pkRec.date):""):"")}${stat("Average throughput",a!=null?a.toFixed(0)+"%":"—",links.length?"≈ "+gb.toFixed(1)+" Gbps in total, "+PN+" view":"")}</div>
   <div class="card" style="margin-top:14px"><h3>${mode==="day"?"Throughput by link":"Average throughput by link"} <span class="hint">· ${esc(label)}</span></h3>${linkBars(links,{peak:mode!=="day",title:"Throughput by link, "+label})}
-   <div class="legend"><span><i style="background:#0EA5E9"></i>50% or less</span><span><i style="background:#16A34A"></i>51 to 89%</span><span><i style="background:#DC2626"></i>90% or more</span>${mode==="day"?"":`<span><i style="background:var(--ink)"></i>Black line = highest night</span>`}</div></div>
-  <div style="margin-top:14px">${trend}</div>
+   <div class="legend"><span><i style="background:#0EA5E9"></i>50% or less</span><span><i style="background:#16A34A"></i>51 to 89%</span><span><i style="background:#DC2626"></i>90% or more</span>${mode==="day"?"":`<span><i style="background:var(--ink)"></i>Line across bar = highest night</span>`}</div></div>
   <h3>Nightly throughput record <span class="hint">· ${esc(label)} · use Edit on a row to correct a wrong value</span></h3>${table("traffic","traffic",{stick:1,labeled:1,foot,filter:r=>r.date>=from&&r.date<=to})}<h3>Circuits</h3>${table("circuits","circuits")}`},
  genload(){const {days,label}=glRange(),from=iso(days[0]),to=iso(days[days.length-1]),byD={};data.genLoad.forEach(r=>{if(r.date)byD[r.date]=r});
   const wk=days.map(d=>byD[iso(d)]).filter(Boolean),K=GENS.map((g,i)=>({g,d:"g"+(i+1)+"d",n:"g"+(i+1)+"n"})),av=k=>{const a=avg(wk.map(r=>num(r[k])));return a==null?null:Math.round(a)};
