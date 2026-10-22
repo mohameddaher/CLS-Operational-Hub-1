@@ -726,6 +726,20 @@ function barChart(labels,series,o){o=o||{};const W=o.W||420,H=240,pl=36,pr=8,pt=
     series.forEach((se,j)=>{const v=se.values[i];if(v==null)return;s+=`<rect x="${x0+j*bw}" y="${y(v)}" width="${bw-1.5}" height="${y(0)-y(v)}" rx="2" style="fill:${se.color}"><title>${esc(l+" · "+se.name+": "+v+"%")}</title></rect>`});
     s+=`<text class="ax" x="${cx}" y="${H-10}" text-anchor="middle">${esc(l)}</text>`});
   return `<div class="chart fit">${s}</svg></div>`}
+/* one vertical bar per link, value above the bar, name and port underneath (like the NOC Excel sheet) */
+function linkBars(items,o){o=o||{};const n=items.length;if(!n)return `<div class="empty">No throughput record yet.</div>`;
+  const cw=66,pl=42,pr=8,pt=24,pb=84,H=340,W=pl+pr+n*cw,bw=38,y=v=>pt+(H-pt-pb)*(1-v/100);
+  const wrap=t=>{const out=[];String(t).split(/(?<=-)|\s+/).filter(Boolean).forEach(w=>{const l=out[out.length-1];if(l&&(l+" "+w).length<=11&&!l.endsWith("-"))out[out.length-1]=l+" "+w;else if(l&&l.endsWith("-")&&(l+w).length<=11)out[out.length-1]=l+w;else out.push(w)});return out.slice(0,3)};
+  let s=`<svg viewBox="0 0 ${W} ${H}" style="min-width:${W}px" role="img" aria-label="${esc(o.title||"Throughput by link")}">`;
+  for(let v=0;v<=100;v+=20)s+=`<line class="gl" x1="${pl}" x2="${W-pr}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${pl-6}" y="${y(v)+4}" text-anchor="end">${v}%</text>`;
+  s+=`<line x1="${pl}" x2="${W-pr}" y1="${y(90)}" y2="${y(90)}" style="stroke:var(--bad)" stroke-dasharray="5 4" opacity=".55"/>`;
+  items.forEach((x,i)=>{const cx=pl+cw*i+cw/2,h=Math.max(0,y(0)-y(x.p));
+    s+=`<rect x="${cx-bw/2}" y="${y(x.p)}" width="${bw}" height="${h}" rx="2" style="fill:${tcolor(x.p)}"><title>${esc(x.c.name+" "+(x.c.port||"")+": "+x.p+"%"+(o.peak?" (highest night "+x.pk+"%)":""))}</title></rect>`;
+    s+=`<text x="${cx}" y="${y(o.peak&&x.pk>x.p?x.pk:x.p)-7}" text-anchor="middle" style="fill:var(--ink);font-size:12px;font-weight:700;font-family:var(--body)">${x.p}%</text>`;
+    if(o.peak&&x.pk>x.p)s+=`<line x1="${cx-bw/2-3}" x2="${cx+bw/2+3}" y1="${y(x.pk)}" y2="${y(x.pk)}" style="stroke:var(--ink)" stroke-width="2.4"><title>Highest night ${x.pk}%</title></line>`;
+    const L=wrap(x.c.name);L.forEach((t,j)=>s+=`<text class="ax" x="${cx}" y="${H-pb+16+j*12}" text-anchor="middle">${esc(t)}</text>`);
+    if(x.c.port)s+=`<text class="ax" x="${cx}" y="${H-pb+16+L.length*12}" text-anchor="middle" style="font-size:10px">(${esc(x.c.port)})</text>`});
+  return `<div class="chart">${s}</svg></div>`}
 let glMode="week",glAnchor=null;
 function glRange(){const recs=data.genLoad.filter(r=>r.date).map(r=>r.date).sort(),base=parseD(glAnchor||recs[recs.length-1]||todayIso());
   if(glMode==="day")return {days:[base],label:fd(base)};
@@ -996,7 +1010,7 @@ function rosterView(){const {days,label}=rosterDays(),ti=todayIso(),dd=dutyDate(
   <p class="sub" style="margin:6px 0 10px">Each duty day runs 08:00 to 08:00 the next morning. <b>A &amp; C</b> person works 08:00 to 14:00 and 20:00 to 02:00. <b>B &amp; D</b> person works 14:00 to 20:00 and 02:00 to 08:00. Auto-fill rotates the pairs and swaps day and night each round; it only fills empty days, so your manual changes stay.</p>
   <div class="tablewrap"><table class="shtable" style="min-width:760px"><thead><tr><th rowspan="2">Date</th><th colspan="2" style="color:${DHEX.Generator}">Generator operators</th><th colspan="2" style="color:${DHEX.Security}">Security team</th></tr><tr><th>A &amp; C</th><th>B &amp; D</th><th>A &amp; C</th><th>B &amp; D</th></tr></thead><tbody>${rows}</tbody></table></div>
   <div class="grid g2" style="margin-top:14px">${sums}</div>`}
-let trMode="week",trAnchor=null,trLink=null;
+let trMode="week",trAnchor=null;
 function perRange(mode,anchor,dates){const base=parseD(anchor||dates[dates.length-1]||todayIso());
   if(mode==="day")return {days:[base],label:fd(base)};
   if(mode==="week"){const st=addDays(base,-((base.getDay()+6)%7)),d=[...Array(7)].map((_,i)=>addDays(st,i));return {days:d,label:fds(d[0])+" to "+fd(d[6])}}
@@ -1012,20 +1026,19 @@ const VIEWS={
   const regAvg=(rec,rg)=>{const v=avg(cs.filter(c=>c.region===rg).map(c=>num(rec["c_"+c.id])));return v==null?null:Math.round(v)};
   const pk=links.slice().sort((a,b)=>b.pk-a.pk)[0],a=avg(links.map(x=>x.p)),gb=links.reduce((s,x)=>s+(num(x.c.capacity)||0)*x.p/100,0);
   const pkRec=pk&&pr.find(r=>num(r["c_"+pk.c.id])===pk.pk),hi=links.filter(x=>x.pk>=90).length;
-  const sel=cs.find(c=>c.id===trLink)||(pk&&pk.c)||cs[0];
   let trend;
   if(mode==="day"){const rec=by[from];trend=`<div class="card"><h3>Average by region on ${esc(label)}</h3>${rec?barChart(regs,[{name:"Average of links",color:"#0891B2",values:regs.map(rg=>regAvg(rec,rg))},{name:"Busiest link",color:"#DC2626",values:regs.map(rg=>{const v=cs.filter(c=>c.region===rg).map(c=>num(rec["c_"+c.id])).filter(x=>x!=null);return v.length?Math.max(...v):null})}],{W:420,bw:20,title:"Throughput by region on "+label})+`<div class="legend"><span><i style="background:#0891B2"></i>Average of links</span><span><i style="background:#DC2626"></i>Busiest link</span></div>`:`<div class="empty">No throughput record for this day. Use “Add throughput record” below.</div>`}</div>`}
   else trend=`<div class="card"><h3>Traffic usage, average by region <span class="hint">· ${esc(label)}</span></h3>${pr.length?lineChart(pr.map(r=>fds(r.date)),regs.map((rg,i)=>({name:rg,color:pal[i],values:pr.map(r=>regAvg(r,rg))})),{unit:"%",min:0,max:100,limit:90,limitLabel:"High at",title:"Traffic usage by region"}):`<div class="empty">No throughput record in this ${mode}.</div>`}</div>`;
   const bt=(m,t)=>`<button class="btn sm ${trMode===m?"":"ghost"}" data-trmode="${m}" aria-pressed="${trMode===m}">${t}</button>`;
-  const one=mode==="day"?"":`<div class="card" style="margin-top:14px"><h3 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">Link trend <select class="rsel" data-trlink aria-label="Choose a link" style="width:auto;max-width:100%">${cs.map(c=>`<option value="${esc(c.id)}"${sel&&c.id===sel.id?" selected":""}>${esc(c.name+(c.port?" ("+c.port+")":""))}</option>`).join("")}</select><span class="hint">· highest throughput of each night, ${esc(label)}</span></h3>${sel&&pr.length?lineChart(pr.map(r=>fds(r.date)),[{name:sel.name,color:"#0891B2",values:pr.map(r=>num(r["c_"+sel.id]))}],{unit:"%",min:0,max:100,limit:90,limitLabel:"High at",title:sel.name+" throughput"}):`<div class="empty">No throughput record in this ${mode}.</div>`}</div>`;
   const foot=rows=>{if(mode==="day"||!rows.length)return "";const row=(t,fn)=>`<tr class="avgrow"><td><b>${t}</b><span class="hint" style="display:block">${rows.length} night${rows.length===1?"":"s"} recorded</span></td>${cs.map(c=>{const v=rows.map(r=>num(r["c_"+c.id])).filter(x=>x!=null);if(!v.length)return `<td>—</td>`;const x=fn(v);return `<td><span class="pill ${ttone(Math.round(x))}">${x}%</span></td>`}).join("")}<td></td></tr>`;
     return row((mode==="week"?"Weekly":"Monthly")+" average",v=>r1(avg(v)))+row("Highest night",v=>Math.max(...v))};
   return head("Internet & L2 port throughput","Maximum nightly throughput on each circuit towards Djibouti and Mombasa and on the Cisco router links, as a share of port capacity. Choose Daily, Weekly or Monthly to change the charts and the table.")+
   `<div class="rtools" style="margin-bottom:14px"><div class="seg" role="group" aria-label="Period">${bt("day","Daily")}${bt("week","Weekly")}${bt("month","Monthly")}</div>
    <button class="btn ghost sm" data-trnav="-1" aria-label="Previous">‹</button><b class="rlabel">${esc(label)}</b><button class="btn ghost sm" data-trnav="1" aria-label="Next">›</button><input type="date" class="rsel" style="width:auto;min-width:0" data-trdate value="${from}" aria-label="Jump to date"><button class="btn ghost sm" data-trnav="0">Latest</button></div>
   <div class="grid g4">${stat("Total links monitored",cs.length,pr.length?pr.length+" night"+(pr.length===1?"":"s")+" recorded, latest "+fds(pr[pr.length-1].date):"No record in this "+mode)}${stat("High throughput links",hi,mode==="day"?"90% or more":"90% or more on any night","var(--bad)")}${stat("Peak link",pk?pk.pk+"%":"—",pk?esc(pk.c.name+" "+(pk.c.port||""))+(pkRec?" · "+fds(pkRec.date):""):"")}${stat("Average throughput",a!=null?a.toFixed(0)+"%":"—",links.length?"≈ "+gb.toFixed(1)+" Gbps in total, "+PN+" view":"")}</div>
-  <div class="grid g2" style="margin-top:14px"><div class="card"><h3>${mode==="day"?"Throughput by link":"Average throughput by link"} <span class="hint">· ${esc(label)}</span></h3>${links.length?`<div class="bars">${links.map(x=>`<div class="bar"><span class="nm">${esc(x.c.name)} <span class="hint mono">${esc(x.c.port||"")}</span></span><span class="track"><i style="width:${Math.min(100,x.p)}%;background:${tcolor(x.p)}"></i>${mode==="day"?"":`<u style="left:calc(${Math.min(100,x.pk)}% - 2px)" title="Highest night ${x.pk}%"></u>`}</span><b>${x.p}%</b></div>`).join("")}</div>${mode==="day"?"":`<div class="legend"><span>Bar = average</span><span><i style="background:var(--ink)"></i>Tick = highest night</span></div>`}`:`<div class="empty">No throughput record in this ${mode}.</div>`}</div>
-  ${trend}</div>${one}
+  <div class="card" style="margin-top:14px"><h3>${mode==="day"?"Throughput by link":"Average throughput by link"} <span class="hint">· ${esc(label)}</span></h3>${linkBars(links,{peak:mode!=="day",title:"Throughput by link, "+label})}
+   <div class="legend"><span><i style="background:#0EA5E9"></i>50% or less</span><span><i style="background:#16A34A"></i>51 to 89%</span><span><i style="background:#DC2626"></i>90% or more</span>${mode==="day"?"":`<span><i style="background:var(--ink)"></i>Black line = highest night</span>`}</div></div>
+  <div style="margin-top:14px">${trend}</div>
   <h3>Nightly throughput record <span class="hint">· ${esc(label)} · use Edit on a row to correct a wrong value</span></h3>${table("traffic","traffic",{stick:1,labeled:1,foot,filter:r=>r.date>=from&&r.date<=to})}<h3>Circuits</h3>${table("circuits","circuits")}`},
  genload(){const {days,label}=glRange(),from=iso(days[0]),to=iso(days[days.length-1]),byD={};data.genLoad.forEach(r=>{if(r.date)byD[r.date]=r});
   const wk=days.map(d=>byD[iso(d)]).filter(Boolean),K=GENS.map((g,i)=>({g,d:"g"+(i+1)+"d",n:"g"+(i+1)+"n"})),av=k=>{const a=avg(wk.map(r=>num(r[k])));return a==null?null:Math.round(a)};
@@ -1415,7 +1428,6 @@ document.addEventListener("click",async e=>{
 });
 document.addEventListener("change",e=>{if(e.target.dataset&&e.target.dataset.gldate!==undefined){if(e.target.value){glAnchor=e.target.value;render()}return}
   if(e.target.dataset&&e.target.dataset.trdate!==undefined){if(e.target.value){trAnchor=e.target.value;render()}return}
-  if(e.target.dataset&&e.target.dataset.trlink!==undefined){trLink=e.target.value;render();return}
   const v=e.target.dataset&&e.target.dataset.rsel;if(!v)return;const [t,di,k]=v.split("|");rosterSet(t,di,k,e.target.value)});
 document.addEventListener("change",e=>{const id=e.target.dataset&&e.target.dataset.ssel;if(!id)return;const p=data.staff.find(x=>x.id===id);if(!p)return;const n={...p};if(e.target.value)n.shift=e.target.value;else delete n.shift;saveRec("staff",n)});
 document.addEventListener("submit",e=>{if(e.target.id==="recForm"){e.preventDefault();submitForm()}});
