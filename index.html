@@ -266,7 +266,8 @@ tfoot td{background:var(--soft);border-top:2px solid var(--line);border-bottom:0
 
 .bars{display:flex;flex-direction:column;gap:9px}
 .bar{display:grid;grid-template-columns:minmax(120px,1.3fr) 2fr 54px;gap:10px;align-items:center;font-size:13px}
-.bar .track{height:12px;background:var(--soft);border-radius:8px;overflow:hidden}
+.bar .track{height:12px;background:var(--soft);border-radius:8px;overflow:hidden;position:relative}
+.bar .track u{position:absolute;top:0;bottom:0;width:3px;background:var(--ink);opacity:.8;text-decoration:none}
 .bar .track i{display:block;height:100%;border-radius:8px;transform-origin:left;animation:grow .9s cubic-bezier(.2,.8,.2,1)}
 @keyframes grow{from{transform:scaleX(.05)}to{transform:none}}
 .bar .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -995,17 +996,37 @@ function rosterView(){const {days,label}=rosterDays(),ti=todayIso(),dd=dutyDate(
   <p class="sub" style="margin:6px 0 10px">Each duty day runs 08:00 to 08:00 the next morning. <b>A &amp; C</b> person works 08:00 to 14:00 and 20:00 to 02:00. <b>B &amp; D</b> person works 14:00 to 20:00 and 02:00 to 08:00. Auto-fill rotates the pairs and swaps day and night each round; it only fills empty days, so your manual changes stay.</p>
   <div class="tablewrap"><table class="shtable" style="min-width:760px"><thead><tr><th rowspan="2">Date</th><th colspan="2" style="color:${DHEX.Generator}">Generator operators</th><th colspan="2" style="color:${DHEX.Security}">Security team</th></tr><tr><th>A &amp; C</th><th>B &amp; D</th><th>A &amp; C</th><th>B &amp; D</th></tr></thead><tbody>${rows}</tbody></table></div>
   <div class="grid g2" style="margin-top:14px">${sums}</div>`}
+let trMode="week",trAnchor=null,trLink=null;
+function perRange(mode,anchor,dates){const base=parseD(anchor||dates[dates.length-1]||todayIso());
+  if(mode==="day")return {days:[base],label:fd(base)};
+  if(mode==="week"){const st=addDays(base,-((base.getDay()+6)%7)),d=[...Array(7)].map((_,i)=>addDays(st,i));return {days:d,label:fds(d[0])+" to "+fd(d[6])}}
+  const y=base.getFullYear(),m=base.getMonth(),n=new Date(y,m+1,0).getDate();return {days:[...Array(n)].map((_,i)=>new Date(y,m,i+1)),label:MONF[m]+" "+y}}
+const trRange=()=>perRange(trMode,trAnchor,data.traffic.filter(r=>r.date).map(r=>r.date).sort());
+/* one record per date, so a date entered twice is never counted twice */
+function trByDate(){const m={};[...data.traffic].filter(r=>r.date).sort((a,b)=>String(a.id).localeCompare(String(b.id))).forEach(r=>{const o=m[r.date]||(m[r.date]={date:r.date});Object.keys(r).forEach(k=>{if(k.startsWith("c_")&&num(r[k])!=null)o[k]=r[k]})});return m}
 const VIEWS={
- traffic(){const recs=[...data.traffic].filter(r=>r.date).sort((a,b)=>a.date.localeCompare(b.date)).slice(-31),lt=recs[recs.length-1],links=linkRows(lt),cs=circuits();
+ traffic(){const {days,label}=trRange(),mode=trMode,from=iso(days[0]),to=iso(days[days.length-1]),by=trByDate(),cs=circuits(),pr=days.map(d=>by[iso(d)]).filter(Boolean),
+  PN={day:"daily",week:"weekly",month:"monthly"}[mode],r1=v=>Math.round(v*10)/10;
+  const links=cs.map(c=>{const v=pr.map(r=>num(r["c_"+c.id])).filter(x=>x!=null);return {c,p:v.length?r1(avg(v)):null,pk:v.length?Math.max(...v):null}}).filter(x=>x.p!=null);
   const regs=[...new Set(cs.map(c=>c.region).filter(Boolean))].slice(0,6),pal=["#0891B2","#F97316","#7C3AED","#16A34A","#DB2777","#CA8A04"];
-  const series=regs.map((rg,i)=>({name:rg,color:pal[i],values:recs.map(r=>{const v=avg(cs.filter(c=>c.region===rg).map(c=>num(r["c_"+c.id])));return v==null?null:Math.round(v)})}));
-  const pk=links.slice().sort((a,b)=>b.p-a.p)[0],a=avg(links.map(x=>x.p));
-  const gb=links.reduce((s,x)=>s+(num(x.c.capacity)||0)*x.p/100,0);
-  return head("Internet & L2 port throughput","Maximum nightly throughput on each circuit towards Djibouti and Mombasa and on the Cisco router links, as a share of port capacity.")+
-  `<div class="grid g4">${stat("Total links monitored",cs.length,lt?"Latest report "+fd(lt.date):"No report yet")}${stat("High throughput links",links.filter(x=>x.p>=90).length,"90% or more","var(--bad)")}${stat("Peak link",pk?pk.p+"%":"—",pk?esc(pk.c.name+" "+(pk.c.port||"")):"")}${stat("Average throughput",a!=null?a.toFixed(0)+"%":"—",links.length?"≈ "+gb.toFixed(1)+" Gbps in total":"")}</div>
-  <div class="grid g2" style="margin-top:14px"><div class="card"><h3>Latest night by link</h3>${links.length?`<div class="bars">${links.map(x=>`<div class="bar"><span class="nm">${esc(x.c.name)} <span class="hint mono">${esc(x.c.port||"")}</span></span><span class="track"><i style="width:${Math.min(100,x.p)}%;background:${tcolor(x.p)}"></i></span><b>${x.p}%</b></div>`).join("")}</div>`:`<div class="empty">No throughput record yet.</div>`}</div>
-  <div class="card"><h3>Traffic usage, average by region</h3>${lineChart(recs.map(r=>fds(r.date)),series,{unit:"%",min:0,max:100,limit:90,limitLabel:"High at",title:"Traffic usage"})}</div></div>
-  <h3>Nightly throughput record <span class="hint">· use Edit on a row to correct a wrong value</span></h3>${table("traffic","traffic",{stick:1,labeled:1})}<h3>Circuits</h3>${table("circuits","circuits")}`},
+  const regAvg=(rec,rg)=>{const v=avg(cs.filter(c=>c.region===rg).map(c=>num(rec["c_"+c.id])));return v==null?null:Math.round(v)};
+  const pk=links.slice().sort((a,b)=>b.pk-a.pk)[0],a=avg(links.map(x=>x.p)),gb=links.reduce((s,x)=>s+(num(x.c.capacity)||0)*x.p/100,0);
+  const pkRec=pk&&pr.find(r=>num(r["c_"+pk.c.id])===pk.pk),hi=links.filter(x=>x.pk>=90).length;
+  const sel=cs.find(c=>c.id===trLink)||(pk&&pk.c)||cs[0];
+  let trend;
+  if(mode==="day"){const rec=by[from];trend=`<div class="card"><h3>Average by region on ${esc(label)}</h3>${rec?barChart(regs,[{name:"Average of links",color:"#0891B2",values:regs.map(rg=>regAvg(rec,rg))},{name:"Busiest link",color:"#DC2626",values:regs.map(rg=>{const v=cs.filter(c=>c.region===rg).map(c=>num(rec["c_"+c.id])).filter(x=>x!=null);return v.length?Math.max(...v):null})}],{W:420,bw:20,title:"Throughput by region on "+label})+`<div class="legend"><span><i style="background:#0891B2"></i>Average of links</span><span><i style="background:#DC2626"></i>Busiest link</span></div>`:`<div class="empty">No throughput record for this day. Use “Add throughput record” below.</div>`}</div>`}
+  else trend=`<div class="card"><h3>Traffic usage, average by region <span class="hint">· ${esc(label)}</span></h3>${pr.length?lineChart(pr.map(r=>fds(r.date)),regs.map((rg,i)=>({name:rg,color:pal[i],values:pr.map(r=>regAvg(r,rg))})),{unit:"%",min:0,max:100,limit:90,limitLabel:"High at",title:"Traffic usage by region"}):`<div class="empty">No throughput record in this ${mode}.</div>`}</div>`;
+  const bt=(m,t)=>`<button class="btn sm ${trMode===m?"":"ghost"}" data-trmode="${m}" aria-pressed="${trMode===m}">${t}</button>`;
+  const one=mode==="day"?"":`<div class="card" style="margin-top:14px"><h3 style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">Link trend <select class="rsel" data-trlink aria-label="Choose a link" style="width:auto;max-width:100%">${cs.map(c=>`<option value="${esc(c.id)}"${sel&&c.id===sel.id?" selected":""}>${esc(c.name+(c.port?" ("+c.port+")":""))}</option>`).join("")}</select><span class="hint">· highest throughput of each night, ${esc(label)}</span></h3>${sel&&pr.length?lineChart(pr.map(r=>fds(r.date)),[{name:sel.name,color:"#0891B2",values:pr.map(r=>num(r["c_"+sel.id]))}],{unit:"%",min:0,max:100,limit:90,limitLabel:"High at",title:sel.name+" throughput"}):`<div class="empty">No throughput record in this ${mode}.</div>`}</div>`;
+  const foot=rows=>{if(mode==="day"||!rows.length)return "";const row=(t,fn)=>`<tr class="avgrow"><td><b>${t}</b><span class="hint" style="display:block">${rows.length} night${rows.length===1?"":"s"} recorded</span></td>${cs.map(c=>{const v=rows.map(r=>num(r["c_"+c.id])).filter(x=>x!=null);if(!v.length)return `<td>—</td>`;const x=fn(v);return `<td><span class="pill ${ttone(Math.round(x))}">${x}%</span></td>`}).join("")}<td></td></tr>`;
+    return row((mode==="week"?"Weekly":"Monthly")+" average",v=>r1(avg(v)))+row("Highest night",v=>Math.max(...v))};
+  return head("Internet & L2 port throughput","Maximum nightly throughput on each circuit towards Djibouti and Mombasa and on the Cisco router links, as a share of port capacity. Choose Daily, Weekly or Monthly to change the charts and the table.")+
+  `<div class="rtools" style="margin-bottom:14px"><div class="seg" role="group" aria-label="Period">${bt("day","Daily")}${bt("week","Weekly")}${bt("month","Monthly")}</div>
+   <button class="btn ghost sm" data-trnav="-1" aria-label="Previous">‹</button><b class="rlabel">${esc(label)}</b><button class="btn ghost sm" data-trnav="1" aria-label="Next">›</button><input type="date" class="rsel" style="width:auto;min-width:0" data-trdate value="${from}" aria-label="Jump to date"><button class="btn ghost sm" data-trnav="0">Latest</button></div>
+  <div class="grid g4">${stat("Total links monitored",cs.length,pr.length?pr.length+" night"+(pr.length===1?"":"s")+" recorded, latest "+fds(pr[pr.length-1].date):"No record in this "+mode)}${stat("High throughput links",hi,mode==="day"?"90% or more":"90% or more on any night","var(--bad)")}${stat("Peak link",pk?pk.pk+"%":"—",pk?esc(pk.c.name+" "+(pk.c.port||""))+(pkRec?" · "+fds(pkRec.date):""):"")}${stat("Average throughput",a!=null?a.toFixed(0)+"%":"—",links.length?"≈ "+gb.toFixed(1)+" Gbps in total, "+PN+" view":"")}</div>
+  <div class="grid g2" style="margin-top:14px"><div class="card"><h3>${mode==="day"?"Throughput by link":"Average throughput by link"} <span class="hint">· ${esc(label)}</span></h3>${links.length?`<div class="bars">${links.map(x=>`<div class="bar"><span class="nm">${esc(x.c.name)} <span class="hint mono">${esc(x.c.port||"")}</span></span><span class="track"><i style="width:${Math.min(100,x.p)}%;background:${tcolor(x.p)}"></i>${mode==="day"?"":`<u style="left:calc(${Math.min(100,x.pk)}% - 2px)" title="Highest night ${x.pk}%"></u>`}</span><b>${x.p}%</b></div>`).join("")}</div>${mode==="day"?"":`<div class="legend"><span>Bar = average</span><span><i style="background:var(--ink)"></i>Tick = highest night</span></div>`}`:`<div class="empty">No throughput record in this ${mode}.</div>`}</div>
+  ${trend}</div>${one}
+  <h3>Nightly throughput record <span class="hint">· ${esc(label)} · use Edit on a row to correct a wrong value</span></h3>${table("traffic","traffic",{stick:1,labeled:1,foot,filter:r=>r.date>=from&&r.date<=to})}<h3>Circuits</h3>${table("circuits","circuits")}`},
  genload(){const {days,label}=glRange(),from=iso(days[0]),to=iso(days[days.length-1]),byD={};data.genLoad.forEach(r=>{if(r.date)byD[r.date]=r});
   const wk=days.map(d=>byD[iso(d)]).filter(Boolean),K=GENS.map((g,i)=>({g,d:"g"+(i+1)+"d",n:"g"+(i+1)+"n"})),av=k=>{const a=avg(wk.map(r=>num(r[k])));return a==null?null:Math.round(a)};
   const all=wk.flatMap(r=>K.flatMap(x=>[num(r[x.d]),num(r[x.n])])).filter(v=>v!=null),pkv=all.length?Math.max(...all):null;
@@ -1356,7 +1377,7 @@ document.querySelector(".theme").addEventListener("click",e=>{const b=e.target.c
 /* ---------- events ---------- */
 document.addEventListener("click",async e=>{
   const chip=e.target.closest("#modal .chip[data-chip]");if(chip){chip.classList.toggle("on");chip.setAttribute("aria-pressed",String(chip.classList.contains("on")));return}
-  const t=e.target.closest("[data-grp],[data-sub],[data-goto],[data-add],[data-addc],[data-addp],[data-edit],[data-del],[data-csv],[data-close],[data-car],[data-cdot],[data-env],[data-tdept],[data-addups],[data-glmode],[data-glnav],[data-rmode],[data-rnav],[data-rfill],[data-qty],[data-area],[data-quick],[data-gs],#burger,#backBtn,#scrim,#doDel");
+  const t=e.target.closest("[data-grp],[data-sub],[data-goto],[data-add],[data-addc],[data-addp],[data-edit],[data-del],[data-csv],[data-close],[data-car],[data-cdot],[data-env],[data-tdept],[data-addups],[data-glmode],[data-glnav],[data-trmode],[data-trnav],[data-rmode],[data-rnav],[data-rfill],[data-qty],[data-area],[data-quick],[data-gs],#burger,#backBtn,#scrim,#doDel");
   if(!t){if(e.target===$("backdrop"))closeModal();return}
   if(t.id==="burger"){$("side").classList.add("open");$("scrim").hidden=false}
   else if(t.id==="backBtn"){goBack()}
@@ -1370,6 +1391,9 @@ document.addEventListener("click",async e=>{
   else if(t.dataset.env){envSel=t.dataset.env;render()}
   else if(t.dataset.tdept){taskDept=t.dataset.tdept;render()}
   else if(t.dataset.glmode){glMode=t.dataset.glmode;render()}
+  else if(t.dataset.trmode){trMode=t.dataset.trmode;render()}
+  else if(t.dataset.trnav!==undefined){const n=+t.dataset.trnav;
+    if(n===0)trAnchor=null;else{const cur=trRange().days[0];trAnchor=iso(trMode==="day"?addDays(cur,n):trMode==="week"?addDays(cur,7*n):new Date(cur.getFullYear(),cur.getMonth()+n,1))}render()}
   else if(t.dataset.glnav!==undefined){const n=+t.dataset.glnav;
     if(n===0)glAnchor=null;else{const cur=glRange().days[0];glAnchor=iso(glMode==="day"?addDays(cur,n):glMode==="week"?addDays(cur,7*n):new Date(cur.getFullYear(),cur.getMonth()+n,1))}render()}
   else if(t.dataset.addups)openForm("ups",null,{unit:t.dataset.addups});
@@ -1390,6 +1414,8 @@ document.addEventListener("click",async e=>{
   else if(t.dataset.gs){const [id,s]=t.dataset.gs.split(":"),r=data.gateLog.find(x=>x.id===id);if(!r)return;const n={...r,status:s};if(s==="Inside"&&!n.tin)n.tin=hhmm();if(s==="Exited"&&!n.tout)n.tout=hhmm();t.disabled=true;if(await saveRec("gateLog",n))toast(s==="Approved"?"Clearance approved":s==="Inside"?"Checked in at "+n.tin:"Checked out at "+n.tout)}
 });
 document.addEventListener("change",e=>{if(e.target.dataset&&e.target.dataset.gldate!==undefined){if(e.target.value){glAnchor=e.target.value;render()}return}
+  if(e.target.dataset&&e.target.dataset.trdate!==undefined){if(e.target.value){trAnchor=e.target.value;render()}return}
+  if(e.target.dataset&&e.target.dataset.trlink!==undefined){trLink=e.target.value;render();return}
   const v=e.target.dataset&&e.target.dataset.rsel;if(!v)return;const [t,di,k]=v.split("|");rosterSet(t,di,k,e.target.value)});
 document.addEventListener("change",e=>{const id=e.target.dataset&&e.target.dataset.ssel;if(!id)return;const p=data.staff.find(x=>x.id===id);if(!p)return;const n={...p};if(e.target.value)n.shift=e.target.value;else delete n.shift;saveRec("staff",n)});
 document.addEventListener("submit",e=>{if(e.target.id==="recForm"){e.preventDefault();submitForm()}});
