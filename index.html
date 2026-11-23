@@ -279,8 +279,6 @@ svg .gl{stroke:var(--line)}
 svg.gbars rect{transition:filter .15s}svg.gbars rect:hover{filter:brightness(1.15)}
 .gleg{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:7px 20px;max-width:1000px;margin:14px auto 2px;font-size:12px;color:var(--ink)}
 .gleg span{display:flex;align-items:center;gap:7px}.gleg i{width:11px;height:11px;border-radius:2px;flex:none}
-.pcard h4{margin:0;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.pcard .sw{width:11px;height:11px;border-radius:3px;flex:none}
-.pcard .big{font-size:26px;font-weight:700;margin:8px 0 2px;display:flex;align-items:baseline;gap:8px}
 .chart{width:100%;overflow-x:auto}
 .chart svg{display:block;width:100%;min-width:480px;height:auto}
 .chart.fit svg{min-width:0}
@@ -749,14 +747,6 @@ function groupBars(days,by,cs,mode,title){const n=cs.length,bw=mode==="day"?30:m
     if(!rec&&mode!=="month")s+=`<text class="ax" x="${x0+n*bw/2}" y="${y(50)}" text-anchor="middle" style="font-size:11px">no record</text>`});
   s+=`<text x="${W-pr-2}" y="${y(90)-5}" text-anchor="end" style="fill:var(--bad);font-size:10.5px;font-weight:600;font-family:var(--body)">High 90%</text>`;
   return `<div class="chart">${s}</svg></div>`}
-function miniBars(vals,days,mode,col){const n=vals.length,W=300,H=104,pl=26,pb=17,pt=8,gw=(W-pl-4)/n,bw=Math.max(3,gw-(mode==="month"?1.4:7)),y=v=>pt+(H-pt-pb)*(1-v/100);
-  let s=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily throughput">`;
-  [0,50,100].forEach(v=>s+=`<line x1="${pl}" x2="${W-4}" y1="${y(v)}" y2="${y(v)}" style="stroke:var(--line)"/><text class="ax" x="${pl-4}" y="${y(v)+3}" text-anchor="end" style="font-size:9px">${v}</text>`);
-  s+=`<line x1="${pl}" x2="${W-4}" y1="${y(90)}" y2="${y(90)}" style="stroke:var(--bad)" stroke-dasharray="4 3" opacity=".7"/>`;
-  vals.forEach((v,i)=>{const d=days[i],x=pl+gw*i+(gw-bw)/2;
-    if(v!=null){const h=Math.max(1,y(0)-y(v));s+=`<rect x="${x}" y="${y(v)}" width="${bw}" height="${h}" rx="${mode==="month"?1:2.5}" style="fill:${col}"><title>${esc(fd(d)+": "+v+"%")}</title></rect>`}
-    if(mode==="week"||d.getDate()===1||d.getDate()%5===0)s+=`<text class="ax" x="${x+bw/2}" y="${H-4}" text-anchor="middle" style="font-size:9px">${mode==="week"?WD[d.getDay()][0]:d.getDate()}</text>`});
-  return `<div class="chart fit">${s}</svg></div>`}
 let glMode="week",glAnchor=null;
 function glRange(){const recs=data.genLoad.filter(r=>r.date).map(r=>r.date).sort(),base=parseD(glAnchor||recs[recs.length-1]||todayIso());
   if(glMode==="day")return {days:[base],label:fd(base)};
@@ -1050,13 +1040,6 @@ const VIEWS={
   <div class="grid g4">${stat("Total links monitored",cs.length,pr.length?pr.length+" night"+(pr.length===1?"":"s")+" recorded, latest "+fds(pr[pr.length-1].date):"No record in this "+mode)}${stat("High throughput links",hi,mode==="day"?"90% or more":"90% or more on any night","var(--bad)")}${stat("Peak link",pk?pk.pk+"%":"—",pk?esc(pk.c.name+" "+(pk.c.port||""))+(pkRec?" · "+fds(pkRec.date):""):"")}${stat("Average throughput",a!=null?a.toFixed(0)+"%":"—",links.length?"≈ "+gb.toFixed(1)+" Gbps in total, "+PN+" view":"")}</div>
   <div class="card" style="margin-top:14px"><div style="text-align:center;margin-bottom:6px"><h3 style="margin:0;font-size:20px">Traffic Usage</h3><div class="hint">${mode==="day"?"Daily report":mode==="week"?"Weekly report":"Monthly report"} · ${esc(label)}</div></div>${pr.length?`<div style="${mode==="day"?"max-width:780px;margin:0 auto":""}">${groupBars(days,by,cs,mode,"Traffic usage, "+label)}</div>${mode==="month"?`<div class="hint" style="text-align:center;margin-top:4px">Scroll sideways to see every day of the month</div>`:""}`:`<div class="empty">No throughput record in this ${mode}.</div>`}
    <div class="gleg">${cs.map((c,i)=>`<span><i style="background:${portCol(i)}"></i>${esc(portName(c))}</span>`).join("")}</div></div>
-  ${mode==="day"?"":`<h3>${mode==="week"?"Weekly":"Monthly"} report for each port <span class="hint">· ${esc(label)}</span></h3>
-  <div class="grid g3">${cs.map((c,i)=>{const vals=days.map(d=>{const r=by[iso(d)];return r?num(r["c_"+c.id]):null}),got=vals.filter(x=>x!=null),col=portCol(i);
-    const head=`<h4><i class="sw" style="background:${col}"></i>${esc(c.name)} <span class="hint mono">${esc(c.port||"")}</span></h4><div class="hint">${esc([c.region,c.capacity?c.capacity+" Gbps":""].filter(Boolean).join(" · "))}</div>`;
-    if(!got.length)return `<div class="card pcard">${head}<div class="empty" style="padding:14px 0">No record in this ${mode}.</div></div>`;
-    const av=r1(avg(got)),mx=Math.max(...got),mn=Math.min(...got);
-    return `<div class="card pcard">${head}<div class="big">${av}%<span class="pill ${ttone(Math.round(av))}" style="font-size:11px">average</span></div>
-     <div class="hint" style="margin-bottom:6px">Highest ${mx}% · Lowest ${mn}% · ${got.length} night${got.length===1?"":"s"} recorded</div>${miniBars(vals,days,mode,col)}</div>`}).join("")}</div>`}
   <h3>Nightly throughput record <span class="hint">· ${esc(label)} · use Edit on a row to correct a wrong value</span></h3>${table("traffic","traffic",{stick:1,labeled:1,foot,filter:r=>r.date>=from&&r.date<=to})}<h3>Circuits</h3>${table("circuits","circuits")}`},
  genload(){const {days,label}=glRange(),from=iso(days[0]),to=iso(days[days.length-1]),byD={};data.genLoad.forEach(r=>{if(r.date)byD[r.date]=r});
   const wk=days.map(d=>byD[iso(d)]).filter(Boolean),K=GENS.map((g,i)=>({g,d:"g"+(i+1)+"d",n:"g"+(i+1)+"n"})),av=k=>{const a=avg(wk.map(r=>num(r[k])));return a==null?null:Math.round(a)};
